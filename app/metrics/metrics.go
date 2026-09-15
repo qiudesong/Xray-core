@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"strings"
+	"time"
 
 	"github.com/xtls/xray-core/app/observatory"
 	"github.com/xtls/xray-core/common"
@@ -29,15 +30,19 @@ type MetricsHandler struct {
 	listen       string
 	tcpListener  xnet.Listener
 	listener     *OutboundListener
+	startedAt    time.Time
+	prometheus   http.Handler
 }
 
 // NewMetricsHandler creates a new MetricsHandler based on the given config.
 func NewMetricsHandler(ctx context.Context, config *Config) (*MetricsHandler, error) {
 	c := &MetricsHandler{
-		ctx:    ctx,
-		tag:    config.Tag,
-		listen: config.Listen,
+		ctx:       ctx,
+		tag:       config.Tag,
+		listen:    config.Listen,
+		startedAt: time.Now(),
 	}
+	c.prometheus = newPrometheusHandler(c)
 	common.Must(core.RequireFeatures(ctx, func(om outbound.Manager, sm feature_stats.Manager) {
 		c.statsManager = sm
 		c.ohm = om
@@ -134,6 +139,7 @@ func isClosedListenerError(err error) bool {
 
 func (p *MetricsHandler) httpHandler() http.Handler {
 	mux := http.NewServeMux()
+	mux.Handle("/metrics", p.prometheus)
 	mux.HandleFunc("/debug/vars", p.handleDebugVars)
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
