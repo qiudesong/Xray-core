@@ -1,0 +1,115 @@
+name: Sync upstream
+
+on:
+  schedule:
+    # Run daily at 03:17 UTC to avoid the top-of-hour queue.
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: sync-upstream
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  UPSTREAM_REPOSITORY: https://github.com/XTLS/Xray-core.git
+  UPSTREAM_BRANCH: main
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the base branch
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          ref: main
+
+      - name: Verify sync token
+        env:
+          SYNC_TOKEN: ${{ secrets.SYNC_TOKEN }}
+        run: |
+          if [[ -z "$SYNC_TOKEN" ]]; then
+            echo "::error::Repository secret SYNC_TOKEN is required to trigger upstream checks."
+            exit 1
+          fi
+
+      - name: Fetch upstream
+        run: |
+          git remote add upstream "$UPSTREAM_REPOSITORY"
+          git fetch --no-tags --prune upstream "$UPSTREAM_BRANCH"
+
+      - name: Merge upstream
+        run: git merge --no-edit "upstream/$UPSTREAM_BRANCH"
+
+      - name: Create or update the sync pull request
+        id: sync-pr
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.SYNC_TOKEN }}
+          branch: automation/sync-upstream
+          base: main
+          delete-branch: true
+          commit-message: "chore: sync upstream XTLS/Xray-core"
+          title: "chore: sync upstream XTLS/Xray-core"
+          body: |
+            This pull request synchronizes `main` with `XTLS/Xray-core`.
+
+            It is created and updated automatically by the scheduled workflow.
+
+      - name: Wait for upstream test checks
+        if: ${{ steps.sync-pr.outputs.pull-request-operation == 'created' || steps.sync-pr.outputs.pull-request-operation == 'updated' }}
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          PR_NUMBER: ${{ steps.sync-pr.outputs.pull-request-number }}
+        run: |
+          required_checks=(
+            "check-assets"
+            "check-proto"
+            "check-format"
+            "test (ubuntu-latest)"
+            "test (macos-latest)"
+            "test (windows-latest)"
+          )
+          deadline=$((SECONDS + 3600))
+
+          while (( SECONDS < deadline )); do
+            checks="$(gh pr checks "$PR_NUMBER" --json name,bucket)"
+            all_passed=true
+
+            for check in "${required_checks[@]}"; do
+              bucket="$(jq -r --arg name "$check" '[.[] | select(.name == $name)][0].bucket // "missing"' <<<"$checks")"
+              case "$bucket" in
+                pass)
+                  echo "$check: passed"
+                  ;;
+                fail|cancel)
+                  echo "$check: $bucket"
+                  exit 1
+                  ;;
+                *)
+                  echo "$check: $bucket"
+                  all_passed=false
+                  ;;
+              esac
+            done
+
+            if [[ "$all_passed" == true ]]; then
+              exit 0
+            fi
+
+            sleep 30
+          done
+
+          echo "::error::Timed out waiting for upstream test checks."
+          exit 1
+
+      - name: Enable automatic squash merge
+        if: ${{ steps.sync-pr.outputs.pull-request-operation == 'created' || steps.sync-pr.outputs.pull-request-operation == 'updated' }}
+        run: gh pr merge "${{ steps.sync-pr.outputs.pull-request-number }}" --auto --squash --delete-branch
+        env:
+          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
