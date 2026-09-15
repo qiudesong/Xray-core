@@ -11,6 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
+  checks: read
   contents: write
   pull-requests: write
 
@@ -64,7 +65,9 @@ jobs:
       - name: Wait for upstream test checks
         if: ${{ steps.sync-pr.outputs.pull-request-operation == 'created' || steps.sync-pr.outputs.pull-request-operation == 'updated' }}
         env:
-          GH_TOKEN: ${{ secrets.SYNC_TOKEN }}
+          # The built-in token can read Actions checks; SYNC_TOKEN is only
+          # needed for PR creation/update and downstream workflow triggers.
+          GH_TOKEN: ${{ github.token }}
           PR_NUMBER: ${{ steps.sync-pr.outputs.pull-request-number }}
         run: |
           required_checks=(
