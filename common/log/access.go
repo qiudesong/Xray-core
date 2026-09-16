@@ -20,6 +20,21 @@ const (
 	AccessRejected = AccessStatus("rejected")
 )
 
+type AccessAddressType string
+
+const (
+	// AccessAddressTypeIP identifies an IP address.
+	AccessAddressTypeIP AccessAddressType = "ip"
+	// AccessAddressTypeDomain identifies a domain name.
+	AccessAddressTypeDomain AccessAddressType = "domain"
+)
+
+// AccessAddress is structured address metadata attached to an access event.
+type AccessAddress struct {
+	Value string
+	Type  AccessAddressType
+}
+
 type AccessMessage struct {
 	From   interface{}
 	To     interface{}
@@ -27,6 +42,15 @@ type AccessMessage struct {
 	Reason interface{}
 	Email  string
 	Detour string
+
+	// Structured routing metadata for access event observers. These fields do
+	// not change the access log's text representation.
+	InboundTag  string
+	OutboundTag string
+	Network     string
+	// Destination is the effective routing destination. It may differ from To,
+	// for example when an HTTP inbound stores an origin-form URL in To.
+	Destination AccessAddress
 }
 
 func (m *AccessMessage) String() string {

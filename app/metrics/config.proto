@@ -11,4 +11,18 @@ message Config {
   // Tag of the outbound handler that handles metrics http connections.
   string tag = 1;
   string listen = 2;
+  AccessMetricsConfig access = 99;
+}
+
+// AccessMetricsConfig controls metrics derived from structured access events.
+message AccessMetricsConfig {
+  reserved 4, 5, 6;
+  reserved "geoip_country_mmdb", "geoip_asn_mmdb", "geoip_city_mmdb";
+
+  bool enabled = 1;
+  // Sliding window stored as an int64 time.Duration.
+  int64 window = 2;
+  uint32 queue_size = 3;
+  // Required when enabled is true. Valid values are server and client.
+  string role = 7;
 }

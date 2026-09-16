@@ -25,8 +25,9 @@ const (
 type Config struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Tag of the outbound handler that handles metrics http connections.
-	Tag           string `protobuf:"bytes,1,opt,name=tag,proto3" json:"tag,omitempty"`
-	Listen        string `protobuf:"bytes,2,opt,name=listen,proto3" json:"listen,omitempty"`
+	Tag           string               `protobuf:"bytes,1,opt,name=tag,proto3" json:"tag,omitempty"`
+	Listen        string               `protobuf:"bytes,2,opt,name=listen,proto3" json:"listen,omitempty"`
+	Access        *AccessMetricsConfig `protobuf:"bytes,99,opt,name=access,proto3" json:"access,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -75,14 +76,99 @@ func (x *Config) GetListen() string {
 	return ""
 }
 
+func (x *Config) GetAccess() *AccessMetricsConfig {
+	if x != nil {
+		return x.Access
+	}
+	return nil
+}
+
+// AccessMetricsConfig controls metrics derived from structured access events.
+type AccessMetricsConfig struct {
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	Enabled bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
+	// Sliding window stored as an int64 time.Duration.
+	Window    int64  `protobuf:"varint,2,opt,name=window,proto3" json:"window,omitempty"`
+	QueueSize uint32 `protobuf:"varint,3,opt,name=queue_size,json=queueSize,proto3" json:"queue_size,omitempty"`
+	// Required when enabled is true. Valid values are server and client.
+	Role          string `protobuf:"bytes,7,opt,name=role,proto3" json:"role,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AccessMetricsConfig) Reset() {
+	*x = AccessMetricsConfig{}
+	mi := &file_app_metrics_config_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AccessMetricsConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AccessMetricsConfig) ProtoMessage() {}
+
+func (x *AccessMetricsConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_app_metrics_config_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AccessMetricsConfig.ProtoReflect.Descriptor instead.
+func (*AccessMetricsConfig) Descriptor() ([]byte, []int) {
+	return file_app_metrics_config_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *AccessMetricsConfig) GetEnabled() bool {
+	if x != nil {
+		return x.Enabled
+	}
+	return false
+}
+
+func (x *AccessMetricsConfig) GetWindow() int64 {
+	if x != nil {
+		return x.Window
+	}
+	return 0
+}
+
+func (x *AccessMetricsConfig) GetQueueSize() uint32 {
+	if x != nil {
+		return x.QueueSize
+	}
+	return 0
+}
+
+func (x *AccessMetricsConfig) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
 var File_app_metrics_config_proto protoreflect.FileDescriptor
 
 const file_app_metrics_config_proto_rawDesc = "" +
 	"\n" +
-	"\x18app/metrics/config.proto\x12\x10xray.app.metrics\"2\n" +
+	"\x18app/metrics/config.proto\x12\x10xray.app.metrics\"q\n" +
 	"\x06Config\x12\x10\n" +
 	"\x03tag\x18\x01 \x01(\tR\x03tag\x12\x16\n" +
-	"\x06listen\x18\x02 \x01(\tR\x06listenBR\n" +
+	"\x06listen\x18\x02 \x01(\tR\x06listen\x12=\n" +
+	"\x06access\x18c \x01(\v2%.xray.app.metrics.AccessMetricsConfigR\x06access\"\xc1\x01\n" +
+	"\x13AccessMetricsConfig\x12\x18\n" +
+	"\aenabled\x18\x01 \x01(\bR\aenabled\x12\x16\n" +
+	"\x06window\x18\x02 \x01(\x03R\x06window\x12\x1d\n" +
+	"\n" +
+	"queue_size\x18\x03 \x01(\rR\tqueueSize\x12\x12\n" +
+	"\x04role\x18\a \x01(\tR\x04roleJ\x04\b\x04\x10\x05J\x04\b\x05\x10\x06J\x04\b\x06\x10\aR\x12geoip_country_mmdbR\x0egeoip_asn_mmdbR\x0fgeoip_city_mmdbBR\n" +
 	"\x14com.xray.app.metricsP\x01Z%github.com/xtls/xray-core/app/metrics\xaa\x02\x10Xray.App.Metricsb\x06proto3"
 
 var (
@@ -97,16 +183,18 @@ func file_app_metrics_config_proto_rawDescGZIP() []byte {
 	return file_app_metrics_config_proto_rawDescData
 }
 
-var file_app_metrics_config_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_app_metrics_config_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_app_metrics_config_proto_goTypes = []any{
-	(*Config)(nil), // 0: xray.app.metrics.Config
+	(*Config)(nil),              // 0: xray.app.metrics.Config
+	(*AccessMetricsConfig)(nil), // 1: xray.app.metrics.AccessMetricsConfig
 }
 var file_app_metrics_config_proto_depIdxs = []int32{
-	0, // [0:0] is the sub-list for method output_type
-	0, // [0:0] is the sub-list for method input_type
-	0, // [0:0] is the sub-list for extension type_name
-	0, // [0:0] is the sub-list for extension extendee
-	0, // [0:0] is the sub-list for field type_name
+	1, // 0: xray.app.metrics.Config.access:type_name -> xray.app.metrics.AccessMetricsConfig
+	1, // [1:1] is the sub-list for method output_type
+	1, // [1:1] is the sub-list for method input_type
+	1, // [1:1] is the sub-list for extension type_name
+	1, // [1:1] is the sub-list for extension extendee
+	0, // [0:1] is the sub-list for field type_name
 }
 
 func init() { file_app_metrics_config_proto_init() }
@@ -120,7 +208,7 @@ func file_app_metrics_config_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_app_metrics_config_proto_rawDesc), len(file_app_metrics_config_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   1,
+			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

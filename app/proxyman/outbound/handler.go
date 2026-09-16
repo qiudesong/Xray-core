@@ -273,6 +273,9 @@ func (h *Handler) Dial(ctx context.Context, dest net.Destination) (stat.Connecti
 	}
 
 	conn, err := internet.Dial(ctx, dest, h.streamSettings)
+	if err == nil && conn != nil {
+		session.RecordOutboundPeer(h.tag, conn.RemoteAddr())
+	}
 	conn = h.getStatCouterConnection(conn)
 	return conn, err
 }

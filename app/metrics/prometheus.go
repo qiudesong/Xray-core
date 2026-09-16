@@ -41,6 +41,20 @@ type prometheusCollector struct {
 	healthPingAverage             *prometheus.Desc
 	healthPingMaximum             *prometheus.Desc
 	healthPingMinimum             *prometheus.Desc
+	accessRequests                *prometheus.Desc
+	accessWindowRequests          *prometheus.Desc
+	accessUniqueUsers             *prometheus.Desc
+	accessPeerCountryConnections  *prometheus.Desc
+	accessPeerASNConnections      *prometheus.Desc
+	accessPeerCityConnections     *prometheus.Desc
+	accessAddressRequests         *prometheus.Desc
+	accessEventsDropped           *prometheus.Desc
+	accessPeerEventsDropped       *prometheus.Desc
+	accessRequestSeriesDropped    *prometheus.Desc
+	accessPeerASNSeriesDropped    *prometheus.Desc
+	accessPeerCitySeriesDropped   *prometheus.Desc
+	accessAddressSeriesDropped    *prometheus.Desc
+	accessUserTrackingDropped     *prometheus.Desc
 }
 
 type trafficSample struct {
@@ -109,6 +123,76 @@ func newPrometheusCollector(handler *MetricsHandler) *prometheusCollector {
 			"Minimum probe duration in the current health-ping window.",
 			labels, nil,
 		),
+		accessRequests: prometheus.NewDesc(
+			"xray_access_requests_total",
+			"Access requests observed since Xray started.",
+			[]string{metricInbound, metricOutbound, "network", "role", "status"}, nil,
+		),
+		accessWindowRequests: prometheus.NewDesc(
+			"xray_access_requests_window",
+			"Access requests observed in the configured bucketed sliding window.",
+			[]string{"role", "status"}, nil,
+		),
+		accessUniqueUsers: prometheus.NewDesc(
+			"xray_access_unique_authenticated_users_window",
+			"Unique authenticated users with accepted requests in the configured sliding window.",
+			[]string{"role"}, nil,
+		),
+		accessPeerCountryConnections: prometheus.NewDesc(
+			"xray_access_peer_country_connections_total",
+			"Established peer connections by country since Xray started.",
+			[]string{"country", "role", "side", "tag", "network"}, nil,
+		),
+		accessPeerASNConnections: prometheus.NewDesc(
+			"xray_access_peer_asn_connections_total",
+			"Established peer connections by autonomous system number and organization since Xray started.",
+			[]string{"asn", "org", "role", "side", "tag", "network"}, nil,
+		),
+		accessPeerCityConnections: prometheus.NewDesc(
+			"xray_access_peer_city_connections_total",
+			"Established peer connections by city since Xray started.",
+			[]string{"country", "city", "role", "side", "tag", "network"}, nil,
+		),
+		accessAddressRequests: prometheus.NewDesc(
+			"xray_access_address_requests_total",
+			"Access requests by the reported source or destination address since Xray started.",
+			[]string{"address", "address_type", "role", "side", "status"}, nil,
+		),
+		accessEventsDropped: prometheus.NewDesc(
+			"xray_access_events_dropped_total",
+			"Structured access events dropped because the metrics queue was full.",
+			[]string{"role"}, nil,
+		),
+		accessPeerEventsDropped: prometheus.NewDesc(
+			"xray_access_peer_events_dropped_total",
+			"Peer connection events dropped because the metrics queue was full.",
+			[]string{"role", "side"}, nil,
+		),
+		accessRequestSeriesDropped: prometheus.NewDesc(
+			"xray_access_request_series_dropped_total",
+			"Access requests not added to a new label series because the in-memory cardinality limit was reached.",
+			[]string{"role"}, nil,
+		),
+		accessPeerASNSeriesDropped: prometheus.NewDesc(
+			"xray_access_peer_asn_series_dropped_total",
+			"Peer connections not added to a new ASN label series because the in-memory cardinality limit was reached.",
+			[]string{"role", "side"}, nil,
+		),
+		accessPeerCitySeriesDropped: prometheus.NewDesc(
+			"xray_access_peer_city_series_dropped_total",
+			"Peer connections not added to a new city label series because the in-memory cardinality limit was reached.",
+			[]string{"role", "side"}, nil,
+		),
+		accessAddressSeriesDropped: prometheus.NewDesc(
+			"xray_access_address_series_dropped_total",
+			"Access requests not added to a new address label series because the in-memory cardinality limit was reached.",
+			[]string{"role"}, nil,
+		),
+		accessUserTrackingDropped: prometheus.NewDesc(
+			"xray_access_user_tracking_dropped_total",
+			"Authenticated users not tracked because the in-memory cardinality limit was reached.",
+			[]string{"role"}, nil,
+		),
 	}
 }
 
@@ -129,6 +213,20 @@ func (c *prometheusCollector) Describe(ch chan<- *prometheus.Desc) {
 		c.healthPingAverage,
 		c.healthPingMaximum,
 		c.healthPingMinimum,
+		c.accessRequests,
+		c.accessWindowRequests,
+		c.accessUniqueUsers,
+		c.accessPeerCountryConnections,
+		c.accessPeerASNConnections,
+		c.accessPeerCityConnections,
+		c.accessAddressRequests,
+		c.accessEventsDropped,
+		c.accessPeerEventsDropped,
+		c.accessRequestSeriesDropped,
+		c.accessPeerASNSeriesDropped,
+		c.accessPeerCitySeriesDropped,
+		c.accessAddressSeriesDropped,
+		c.accessUserTrackingDropped,
 	}
 	for _, description := range descriptions {
 		ch <- description
@@ -140,6 +238,173 @@ func (c *prometheusCollector) Collect(ch chan<- prometheus.Metric) {
 
 	c.collectTraffic(ch)
 	c.collectObservatory(ch)
+	c.collectAccess(ch)
+}
+
+func (c *prometheusCollector) collectAccess(ch chan<- prometheus.Metric) {
+	if c.handler.access == nil {
+		return
+	}
+	snapshot := c.handler.access.snapshot(time.Now())
+	sort.Slice(snapshot.requests, func(i, j int) bool {
+		left, right := snapshot.requests[i].labels, snapshot.requests[j].labels
+		if left.inbound != right.inbound {
+			return left.inbound < right.inbound
+		}
+		if left.outbound != right.outbound {
+			return left.outbound < right.outbound
+		}
+		if left.network != right.network {
+			return left.network < right.network
+		}
+		return left.status < right.status
+	})
+	for _, sample := range snapshot.requests {
+		ch <- prometheus.MustNewConstMetric(
+			c.accessRequests,
+			prometheus.CounterValue,
+			float64(sample.value),
+			sample.labels.inbound,
+			sample.labels.outbound,
+			sample.labels.network,
+			snapshot.role,
+			sample.labels.status,
+		)
+	}
+
+	statuses := make([]string, 0, len(snapshot.windowRequests))
+	for status := range snapshot.windowRequests {
+		statuses = append(statuses, status)
+	}
+	sort.Strings(statuses)
+	for _, status := range statuses {
+		ch <- prometheus.MustNewConstMetric(c.accessWindowRequests, prometheus.GaugeValue, float64(snapshot.windowRequests[status]), snapshot.role, status)
+	}
+
+	sort.Slice(snapshot.peerCountryConnections, func(i, j int) bool {
+		left, right := snapshot.peerCountryConnections[i].labels, snapshot.peerCountryConnections[j].labels
+		if left.country != right.country {
+			return left.country < right.country
+		}
+		if left.side != right.side {
+			return left.side < right.side
+		}
+		if left.tag != right.tag {
+			return left.tag < right.tag
+		}
+		return left.network < right.network
+	})
+	for _, sample := range snapshot.peerCountryConnections {
+		ch <- prometheus.MustNewConstMetric(
+			c.accessPeerCountryConnections,
+			prometheus.CounterValue,
+			float64(sample.value),
+			sample.labels.country,
+			snapshot.role,
+			sample.labels.side,
+			sample.labels.tag,
+			sample.labels.network,
+		)
+	}
+
+	sort.Slice(snapshot.peerASNConnections, func(i, j int) bool {
+		left, right := snapshot.peerASNConnections[i].labels, snapshot.peerASNConnections[j].labels
+		if left.asn != right.asn {
+			return left.asn < right.asn
+		}
+		if left.org != right.org {
+			return left.org < right.org
+		}
+		if left.side != right.side {
+			return left.side < right.side
+		}
+		if left.tag != right.tag {
+			return left.tag < right.tag
+		}
+		return left.network < right.network
+	})
+	for _, sample := range snapshot.peerASNConnections {
+		ch <- prometheus.MustNewConstMetric(
+			c.accessPeerASNConnections,
+			prometheus.CounterValue,
+			float64(sample.value),
+			sample.labels.asn,
+			sample.labels.org,
+			snapshot.role,
+			sample.labels.side,
+			sample.labels.tag,
+			sample.labels.network,
+		)
+	}
+
+	sort.Slice(snapshot.peerCityConnections, func(i, j int) bool {
+		left, right := snapshot.peerCityConnections[i].labels, snapshot.peerCityConnections[j].labels
+		if left.country != right.country {
+			return left.country < right.country
+		}
+		if left.city != right.city {
+			return left.city < right.city
+		}
+		if left.side != right.side {
+			return left.side < right.side
+		}
+		if left.tag != right.tag {
+			return left.tag < right.tag
+		}
+		return left.network < right.network
+	})
+	for _, sample := range snapshot.peerCityConnections {
+		ch <- prometheus.MustNewConstMetric(
+			c.accessPeerCityConnections,
+			prometheus.CounterValue,
+			float64(sample.value),
+			sample.labels.country,
+			sample.labels.city,
+			snapshot.role,
+			sample.labels.side,
+			sample.labels.tag,
+			sample.labels.network,
+		)
+	}
+
+	sort.Slice(snapshot.addressRequests, func(i, j int) bool {
+		left, right := snapshot.addressRequests[i].labels, snapshot.addressRequests[j].labels
+		if left.address != right.address {
+			return left.address < right.address
+		}
+		if left.addressType != right.addressType {
+			return left.addressType < right.addressType
+		}
+		if left.side != right.side {
+			return left.side < right.side
+		}
+		return left.status < right.status
+	})
+	for _, sample := range snapshot.addressRequests {
+		ch <- prometheus.MustNewConstMetric(
+			c.accessAddressRequests,
+			prometheus.CounterValue,
+			float64(sample.value),
+			sample.labels.address,
+			sample.labels.addressType,
+			snapshot.role,
+			sample.labels.side,
+			sample.labels.status,
+		)
+	}
+
+	ch <- prometheus.MustNewConstMetric(c.accessUniqueUsers, prometheus.GaugeValue, float64(snapshot.uniqueUsers), snapshot.role)
+	ch <- prometheus.MustNewConstMetric(c.accessEventsDropped, prometheus.CounterValue, float64(snapshot.eventsDropped), snapshot.role)
+	ch <- prometheus.MustNewConstMetric(c.accessPeerEventsDropped, prometheus.CounterValue, float64(snapshot.peerEventsDropped), snapshot.role, snapshot.peerSide)
+	ch <- prometheus.MustNewConstMetric(c.accessRequestSeriesDropped, prometheus.CounterValue, float64(snapshot.requestSeriesDropped), snapshot.role)
+	if snapshot.asnEnabled {
+		ch <- prometheus.MustNewConstMetric(c.accessPeerASNSeriesDropped, prometheus.CounterValue, float64(snapshot.peerASNSeriesDropped), snapshot.role, snapshot.peerSide)
+	}
+	if snapshot.cityEnabled {
+		ch <- prometheus.MustNewConstMetric(c.accessPeerCitySeriesDropped, prometheus.CounterValue, float64(snapshot.peerCitySeriesDropped), snapshot.role, snapshot.peerSide)
+	}
+	ch <- prometheus.MustNewConstMetric(c.accessAddressSeriesDropped, prometheus.CounterValue, float64(snapshot.addressSeriesDropped), snapshot.role)
+	ch <- prometheus.MustNewConstMetric(c.accessUserTrackingDropped, prometheus.CounterValue, float64(snapshot.userTrackingDropped), snapshot.role)
 }
 
 func (c *prometheusCollector) collectTraffic(ch chan<- prometheus.Metric) {

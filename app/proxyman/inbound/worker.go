@@ -59,6 +59,7 @@ func getTProxyType(s *internet.MemoryStreamConfig) internet.SocketConfig_TProxyM
 }
 
 func (w *tcpWorker) callback(conn stat.Connection) {
+	session.RecordInboundPeer(w.tag, conn.RemoteAddr())
 	ctx, cancel := context.WithCancel(w.ctx)
 	sid := session.NewID()
 	ctx = c.ContextWithID(ctx, sid)
@@ -306,6 +307,7 @@ func (w *udpWorker) getConnection(id connID) (*udpConn, bool) {
 		downlink: w.downlinkCounter,
 	}
 	w.activeConn[id] = conn
+	session.RecordInboundPeer(w.tag, id.src.RawNetAddr())
 
 	conn.updateActivity()
 	return conn, false

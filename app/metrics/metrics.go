@@ -32,6 +32,7 @@ type MetricsHandler struct {
 	listener     *OutboundListener
 	startedAt    time.Time
 	prometheus   http.Handler
+	access       *accessMetrics
 }
 
 // NewMetricsHandler creates a new MetricsHandler based on the given config.
@@ -42,6 +43,11 @@ func NewMetricsHandler(ctx context.Context, config *Config) (*MetricsHandler, er
 		listen:    config.Listen,
 		startedAt: time.Now(),
 	}
+	access, err := newAccessMetrics(config.GetAccess())
+	if err != nil {
+		return nil, err
+	}
+	c.access = access
 	c.prometheus = newPrometheusHandler(c)
 	common.Must(core.RequireFeatures(ctx, func(om outbound.Manager, sm feature_stats.Manager) {
 		c.statsManager = sm
@@ -55,12 +61,20 @@ func (p *MetricsHandler) Type() interface{} {
 }
 
 func (p *MetricsHandler) Start() error {
+	if p.access != nil {
+		p.access.Start()
+	}
 	handler := p.httpHandler()
 
 	// direct listen a port if listen is set
 	if p.listen != "" {
 		TCPlistener, err := xnet.Listen("tcp", p.listen)
 		if err != nil {
+			if p.access != nil {
+				if closeErr := p.access.Close(); closeErr != nil {
+					errors.LogErrorInner(context.Background(), closeErr, "failed to close access metrics after start failure")
+				}
+			}
 			return err
 		}
 		p.tcpListener = TCPlistener
@@ -71,6 +85,11 @@ func (p *MetricsHandler) Start() error {
 
 	if p.tag == "" {
 		if p.tcpListener == nil {
+			if p.access != nil {
+				if closeErr := p.access.Close(); closeErr != nil {
+					errors.LogErrorInner(context.Background(), closeErr, "failed to close access metrics after start failure")
+				}
+			}
 			return errors.New("metrics must have a tag or listen address")
 		}
 		return nil
@@ -103,6 +122,9 @@ func (p *MetricsHandler) Start() error {
 
 func (p *MetricsHandler) Close() error {
 	var errs []error
+	if p.access != nil {
+		errs = append(errs, p.access.Close())
+	}
 	if p.tcpListener != nil {
 		errs = append(errs, p.tcpListener.Close())
 		p.tcpListener = nil

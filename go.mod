@@ -13,6 +13,7 @@ require (
 	github.com/klauspost/cpuid/v2 v2.4.0
 	github.com/libp2p/go-nat v1.0.1-0.20250821073202-01afc089f138
 	github.com/miekg/dns v1.1.73
+	github.com/oschwald/geoip2-golang v1.13.0
 	github.com/pelletier/go-toml v1.9.5
 	github.com/pion/stun/v3 v3.1.7
 	github.com/pires/go-proxyproto v0.15.0
@@ -54,6 +55,7 @@ require (
 	github.com/koron/go-ssdp v0.0.4 // indirect
 	github.com/libp2p/go-netroute v0.2.1 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/oschwald/maxminddb-golang v1.13.0 // indirect
 	github.com/pion/dtls/v3 v3.1.5 // indirect
 	github.com/pion/logging v0.2.4 // indirect
 	github.com/pion/transport/v4 v4.1.0 // indirect

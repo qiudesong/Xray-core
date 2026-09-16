@@ -132,7 +132,7 @@ func (s *Server) Process(ctx context.Context, network net.Network, conn stat.Con
 		common.Must(conn.SetReadDeadline(time.Now().Add(sessionPolicy.Timeouts.Handshake)))
 		addr, err := ReadTCPRequest(conn)
 		if err != nil {
-			log.Record(&log.AccessMessage{
+			session.RecordAccess(ctx, &log.AccessMessage{
 				From:   conn.RemoteAddr(),
 				To:     "",
 				Status: log.AccessRejected,

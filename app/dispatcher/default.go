@@ -26,6 +26,27 @@ import (
 
 var errSniffingTimeout = errors.New("timeout on sniffing")
 
+func newAccessAddress(destination net.Destination) log.AccessAddress {
+	if destination.Network == net.Network_UNIX || destination.Address == nil {
+		return log.AccessAddress{}
+	}
+
+	switch family := destination.Address.Family(); {
+	case family.IsIP():
+		return log.AccessAddress{
+			Value: destination.Address.IP().String(),
+			Type:  log.AccessAddressTypeIP,
+		}
+	case family.IsDomain():
+		return log.AccessAddress{
+			Value: destination.Address.Domain(),
+			Type:  log.AccessAddressTypeDomain,
+		}
+	default:
+		return log.AccessAddress{}
+	}
+}
+
 type cachedReader struct {
 	sync.Mutex
 	reader buf.TimeoutReader // *pipe.Reader or *buf.TimeoutWrapperReader
@@ -487,6 +508,10 @@ func (d *DefaultDispatcher) routedDispatch(ctx context.Context, link *transport.
 
 	ob.Tag = handler.Tag()
 	if accessMessage := log.AccessMessageFromContext(ctx); accessMessage != nil {
+		accessMessage.InboundTag = inTag
+		accessMessage.OutboundTag = handler.Tag()
+		accessMessage.Network = destination.Network.SystemString()
+		accessMessage.Destination = newAccessAddress(destination)
 		if tag := handler.Tag(); tag != "" {
 			if inTag == "" {
 				accessMessage.Detour = tag
@@ -498,7 +523,7 @@ func (d *DefaultDispatcher) routedDispatch(ctx context.Context, link *transport.
 				accessMessage.Detour = inTag + " >> " + tag
 			}
 		}
-		log.Record(accessMessage)
+		session.RecordAccess(ctx, accessMessage)
 	}
 
 	handler.Dispatch(ctx, link)

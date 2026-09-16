@@ -123,7 +123,7 @@ func (s *Server) processTCP(ctx context.Context, conn stat.Connection, dispatche
 	defer common.CloseIfExists(tempUDPConn)
 	if err != nil {
 		if inbound.Source.IsValid() {
-			log.Record(&log.AccessMessage{
+			session.RecordAccess(ctx, &log.AccessMessage{
 				From:   inbound.Source,
 				To:     "",
 				Status: log.AccessRejected,

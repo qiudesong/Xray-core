@@ -513,7 +513,7 @@ func (h *Handler) Process(ctx context.Context, network net.Network, connection s
 		}
 
 		if errors.Cause(err) != io.EOF {
-			log.Record(&log.AccessMessage{
+			session.RecordAccess(ctx, &log.AccessMessage{
 				From:   connection.RemoteAddr(),
 				To:     "",
 				Status: log.AccessRejected,
