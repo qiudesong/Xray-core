@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/xtls/xray-core/common/log"
 	"github.com/xtls/xray-core/common/net"
+	"github.com/xtls/xray-core/common/session"
 	"github.com/xtls/xray-core/features/routing"
 	"github.com/xtls/xray-core/transport/internet/stat"
 )
@@ -32,7 +32,7 @@ func (c *peerTestConnection) LocalAddr() stdnet.Addr  { return c.local }
 func (c *peerTestConnection) RemoteAddr() stdnet.Addr { return c.remote }
 
 func TestTCPWorkerPublishesAcceptedPeer(t *testing.T) {
-	subscription := log.SubscribePeerEvents(log.PeerSideInbound, 1)
+	subscription := session.SubscribePeerEvents(1)
 	t.Cleanup(subscription.Close)
 
 	left, right := stdnet.Pipe()
@@ -62,7 +62,7 @@ func TestTCPWorkerPublishesAcceptedPeer(t *testing.T) {
 }
 
 func TestUDPWorkerPublishesPeerOncePerLogicalSession(t *testing.T) {
-	subscription := log.SubscribePeerEvents(log.PeerSideInbound, 2)
+	subscription := session.SubscribePeerEvents(2)
 	t.Cleanup(subscription.Close)
 
 	worker := &udpWorker{

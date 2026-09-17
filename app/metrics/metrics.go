@@ -9,7 +9,6 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"strings"
-	"time"
 
 	"github.com/xtls/xray-core/app/observatory"
 	"github.com/xtls/xray-core/common"
@@ -30,7 +29,6 @@ type MetricsHandler struct {
 	listen       string
 	tcpListener  xnet.Listener
 	listener     *OutboundListener
-	startedAt    time.Time
 	prometheus   http.Handler
 	access       *accessMetrics
 }
@@ -38,10 +36,9 @@ type MetricsHandler struct {
 // NewMetricsHandler creates a new MetricsHandler based on the given config.
 func NewMetricsHandler(ctx context.Context, config *Config) (*MetricsHandler, error) {
 	c := &MetricsHandler{
-		ctx:       ctx,
-		tag:       config.Tag,
-		listen:    config.Listen,
-		startedAt: time.Now(),
+		ctx:    ctx,
+		tag:    config.Tag,
+		listen: config.Listen,
 	}
 	access, err := newAccessMetrics(config.GetAccess())
 	if err != nil {
@@ -208,7 +205,7 @@ func (p *MetricsHandler) stats() map[string]map[string]map[string]int64 {
 	}
 	p.statsManager.VisitCounters(func(name string, counter feature_stats.Counter) bool {
 		nameSplit := strings.Split(name, ">>>")
-		if len(nameSplit) < 4 {
+		if len(nameSplit) < 4 || nameSplit[0] == "route" {
 			return true
 		}
 		typeName, tagOrUser, direction := nameSplit[0], nameSplit[1], nameSplit[3]

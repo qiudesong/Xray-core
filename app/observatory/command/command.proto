@@ -7,6 +7,7 @@ option java_package = "com.xray.core.app.observatory.command";
 option java_multiple_files = true;
 
 import "app/observatory/config.proto";
+import "app/observatory/status.proto";
 
 message GetOutboundStatusRequest {
 }
@@ -15,9 +16,20 @@ message GetOutboundStatusResponse {
   xray.core.app.observatory.ObservationResult status = 1;
 }
 
+message ListProbeStatusesRequest {
+	string observer_tag = 1;
+	string outbound_tag = 2;
+}
+
+message ListProbeStatusesResponse {
+  repeated xray.core.app.observatory.ObserverStatus observers = 1;
+}
+
 service ObservatoryService {
   rpc GetOutboundStatus(GetOutboundStatusRequest)
       returns (GetOutboundStatusResponse) {}
+  rpc ListProbeStatuses(ListProbeStatusesRequest)
+      returns (ListProbeStatusesResponse) {}
 }
 
 

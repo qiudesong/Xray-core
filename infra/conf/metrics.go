@@ -1,8 +1,6 @@
 package conf
 
 import (
-	"strings"
-
 	"github.com/xtls/xray-core/app/metrics"
 	"github.com/xtls/xray-core/common/errors"
 	"github.com/xtls/xray-core/infra/conf/cfgcommon/duration"
@@ -15,10 +13,11 @@ type MetricsConfig struct {
 }
 
 type AccessMetricsConfig struct {
-	Enabled   bool              `json:"enabled"`
-	Window    duration.Duration `json:"window,omitempty"`
-	QueueSize uint32            `json:"queueSize,omitempty"`
-	Role      string            `json:"role,omitempty"`
+	Enabled     bool              `json:"enabled"`
+	Window      duration.Duration `json:"window,omitempty"`
+	QueueSize   uint32            `json:"queueSize,omitempty"`
+	IncludeFrom bool              `json:"includeFrom,omitempty"`
+	IncludeTo   bool              `json:"includeTo,omitempty"`
 }
 
 func (c *MetricsConfig) Build() (*metrics.Config, error) {
@@ -35,15 +34,12 @@ func (c *MetricsConfig) Build() (*metrics.Config, error) {
 		Listen: c.Listen,
 	}
 	if c.Access != nil {
-		role := strings.ToLower(strings.TrimSpace(c.Access.Role))
-		if c.Access.Enabled && role != "server" && role != "client" {
-			return nil, errors.New("metrics access role is required and must be server or client")
-		}
 		config.Access = &metrics.AccessMetricsConfig{
-			Enabled:   c.Access.Enabled,
-			Window:    int64(c.Access.Window),
-			QueueSize: c.Access.QueueSize,
-			Role:      role,
+			Enabled:     c.Access.Enabled,
+			Window:      int64(c.Access.Window),
+			QueueSize:   c.Access.QueueSize,
+			IncludeFrom: c.Access.IncludeFrom,
+			IncludeTo:   c.Access.IncludeTo,
 		}
 	}
 	return config, nil

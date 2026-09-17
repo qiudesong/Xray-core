@@ -20,6 +20,12 @@ type Handler interface {
 	ProxySettings() *serial.TypedMessage
 }
 
+// ConnectionAttemptCounter is implemented by handlers that expose the number
+// of dispatch attempts since they were created.
+type ConnectionAttemptCounter interface {
+	ConnectionAttempts() uint64
+}
+
 type HandlerSelector interface {
 	Select([]string) []string
 }

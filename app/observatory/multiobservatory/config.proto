@@ -1,0 +1,50 @@
+syntax = "proto3";
+
+package xray.core.app.observatory.multiobservatory;
+option csharp_namespace = "Xray.App.Observatory.MultiObservatory";
+option go_package = "github.com/xtls/xray-core/app/observatory/multiobservatory";
+option java_package = "com.xray.app.observatory.multiobservatory";
+option java_multiple_files = true;
+
+import "common/serial/typed_message.proto";
+
+message Config {
+  repeated ObserverConfig observers = 1;
+}
+
+message ObserverConfig {
+  string tag = 1;
+  string type = 2;
+  xray.common.serial.TypedMessage settings = 3;
+}
+
+message HealthConfig {
+  repeated string subject_selector = 1;
+  string method = 2;
+  string url = 3;
+  int64 interval = 4;
+  int64 timeout = 5;
+  uint32 concurrency = 6;
+  uint32 accepted_status_min = 7;
+  uint32 accepted_status_max = 8;
+  int64 min_bytes = 9;
+  HealthPolicyConfig policy = 10;
+  IPProbeProviderConfig ip_provider = 11;
+}
+
+message IPProbeProviderConfig {
+  string type = 1;
+  string url = 2;
+}
+
+message HealthPolicyConfig {
+  string type = 1;
+  xray.common.serial.TypedMessage settings = 2;
+}
+
+message SlidingWindowPolicyConfig {
+  optional uint32 window_size = 1;
+  optional uint32 minimum_samples = 2;
+  optional double failure_threshold = 3;
+  optional double recovery_threshold = 4;
+}

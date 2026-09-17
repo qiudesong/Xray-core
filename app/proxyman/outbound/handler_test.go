@@ -14,7 +14,6 @@ import (
 	"github.com/xtls/xray-core/app/proxyman"
 	. "github.com/xtls/xray-core/app/proxyman/outbound"
 	"github.com/xtls/xray-core/app/stats"
-	"github.com/xtls/xray-core/common/log"
 	"github.com/xtls/xray-core/common/net"
 	"github.com/xtls/xray-core/common/serial"
 	"github.com/xtls/xray-core/common/session"
@@ -142,7 +141,7 @@ func TestDialPublishesPeerOnlyAfterSuccess(t *testing.T) {
 	}
 	h := handler.(*Handler)
 
-	subscription := log.SubscribePeerEvents(log.PeerSideOutbound, 2)
+	subscription := session.SubscribePeerEvents(2)
 	t.Cleanup(subscription.Close)
 	conn, err := h.Dial(ctx, net.TCPDestination(net.ParseAddress("198.51.100.1"), 1))
 	if err != nil {
@@ -191,11 +190,11 @@ func TestTagsCache(t *testing.T) {
 	v.AddFeature(ohm)
 	ctx := context.WithValue(context.Background(), xrayKey, v)
 
-	stop_add_rm := false
+	stop_add_rm := atomic.Bool{}
 	wg_add_rm := sync.WaitGroup{}
 	addHandlers := func() {
 		defer wg_add_rm.Done()
-		for !stop_add_rm {
+		for !stop_add_rm.Load() {
 			time.Sleep(delay)
 			idx := counter.Add(1)
 			tag := fmt.Sprintf("%s%d", tags_prefix, idx)
@@ -218,7 +217,7 @@ func TestTagsCache(t *testing.T) {
 
 	rmHandlers := func() {
 		defer wg_add_rm.Done()
-		for !stop_add_rm {
+		for !stop_add_rm.Load() {
 			time.Sleep(delay)
 			tags.Range(func(key interface{}, value interface{}) bool {
 				if _, ok := tags.LoadAndDelete(key); ok {
@@ -233,10 +232,10 @@ func TestTagsCache(t *testing.T) {
 
 	selectors := []string{tags_prefix}
 	wg_get := sync.WaitGroup{}
-	stop_get := false
+	stop_get := atomic.Bool{}
 	getTags := func() {
 		defer wg_get.Done()
-		for !stop_get {
+		for !stop_get.Load() {
 			time.Sleep(delay)
 			_ = ohm.Select(selectors)
 			// t.Logf("get tags: %v", tag)
@@ -252,8 +251,8 @@ func TestTagsCache(t *testing.T) {
 	}
 
 	time.Sleep(test_duration)
-	stop_add_rm = true
+	stop_add_rm.Store(true)
 	wg_add_rm.Wait()
-	stop_get = true
+	stop_get.Store(true)
 	wg_get.Wait()
 }

@@ -62,8 +62,9 @@ type node struct {
 func (s *LeastLoadStrategy) InjectContext(ctx context.Context) {
 	s.ctx = ctx
 	common.Must(core.RequireFeatures(s.ctx, func(observatory extension.Observatory) error {
-		s.observer = observatory
-		return nil
+		selected, err := observatoryByTag(observatory, s.settings.ObserverTag)
+		s.observer = selected
+		return err
 	}))
 }
 

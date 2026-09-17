@@ -8,15 +8,15 @@ import (
 
 // RecordInboundPeer publishes a successfully established inbound peer.
 func RecordInboundPeer(tag string, peer stdnet.Addr) {
-	recordPeer(log.PeerSideInbound, tag, peer)
+	recordPeer(PeerSideInbound, tag, peer)
 }
 
 // RecordOutboundPeer publishes a successfully established outbound peer.
 func RecordOutboundPeer(tag string, peer stdnet.Addr) {
-	recordPeer(log.PeerSideOutbound, tag, peer)
+	recordPeer(PeerSideOutbound, tag, peer)
 }
 
-func recordPeer(side log.PeerSide, tag string, peer stdnet.Addr) {
+func recordPeer(side PeerSide, tag string, peer stdnet.Addr) {
 	var ip stdnet.IP
 	var network string
 	switch address := peer.(type) {
@@ -36,7 +36,7 @@ func recordPeer(side log.PeerSide, tag string, peer stdnet.Addr) {
 	if ip == nil {
 		return
 	}
-	log.PublishPeerEvent(log.PeerEvent{
+	PublishPeerEvent(PeerEvent{
 		Side:    side,
 		Tag:     tag,
 		Network: network,

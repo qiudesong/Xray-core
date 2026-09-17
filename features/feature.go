@@ -10,3 +10,11 @@ type Feature interface {
 	common.HasType
 	common.Runnable
 }
+
+// TaggedFeatures is a feature container whose members can be addressed by a
+// stable configuration tag.
+type TaggedFeatures interface {
+	GetFeaturesByTag(tag string) (Feature, error)
+	GetFeaturesTag() []string
+	common.Runnable
+}

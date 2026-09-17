@@ -1,9 +1,11 @@
-package log
+package session
 
 import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/xtls/xray-core/common/log"
 )
 
 // PeerSide identifies whether a peer belongs to an inbound or outbound
@@ -23,17 +25,17 @@ type PeerEvent struct {
 	Side    PeerSide
 	Tag     string
 	Network string
-	Address AccessAddress
+	Address log.AccessAddress
 }
 
-// PeerSubscription receives peer events for one side without blocking the
-// connection handling path. Events are dropped when the subscription buffer is
-// full.
+// PeerSubscription receives peer events without blocking the connection handling
+// path. Events are dropped when the subscription buffer is full.
 type PeerSubscription struct {
-	side    PeerSide
-	events  chan PeerEvent
-	dropped atomic.Uint64
-	close   sync.Once
+	events          chan PeerEvent
+	dropped         atomic.Uint64
+	droppedInbound  atomic.Uint64
+	droppedOutbound atomic.Uint64
+	close           sync.Once
 }
 
 var peerSubscriptions = struct {
@@ -43,13 +45,12 @@ var peerSubscriptions = struct {
 	items: make(map[*PeerSubscription]struct{}),
 }
 
-// SubscribePeerEvents subscribes to peer events for side.
-func SubscribePeerEvents(side PeerSide, bufferSize int) *PeerSubscription {
+// SubscribePeerEvents subscribes to inbound and outbound peer events.
+func SubscribePeerEvents(bufferSize int) *PeerSubscription {
 	if bufferSize < 1 {
 		bufferSize = 1
 	}
 	subscription := &PeerSubscription{
-		side:   side,
 		events: make(chan PeerEvent, bufferSize),
 	}
 	peerSubscriptions.Lock()
@@ -69,6 +70,18 @@ func (s *PeerSubscription) Dropped() uint64 {
 	return s.dropped.Load()
 }
 
+// DroppedForSide returns the number of events dropped for one peer side.
+func (s *PeerSubscription) DroppedForSide(side PeerSide) uint64 {
+	switch side {
+	case PeerSideInbound:
+		return s.droppedInbound.Load()
+	case PeerSideOutbound:
+		return s.droppedOutbound.Load()
+	default:
+		return 0
+	}
+}
+
 // Close removes the subscription and closes its event stream.
 func (s *PeerSubscription) Close() {
 	s.close.Do(func() {
@@ -79,7 +92,7 @@ func (s *PeerSubscription) Close() {
 	})
 }
 
-// PublishPeerEvent publishes an immutable peer event to matching subscribers.
+// PublishPeerEvent publishes an immutable peer event to all subscribers.
 func PublishPeerEvent(event PeerEvent) {
 	peerSubscriptions.RLock()
 	defer peerSubscriptions.RUnlock()
@@ -91,13 +104,16 @@ func PublishPeerEvent(event PeerEvent) {
 		event.Time = time.Now()
 	}
 	for subscription := range peerSubscriptions.items {
-		if subscription.side != event.Side {
-			continue
-		}
 		select {
 		case subscription.events <- event:
 		default:
 			subscription.dropped.Add(1)
+			switch event.Side {
+			case PeerSideInbound:
+				subscription.droppedInbound.Add(1)
+			case PeerSideOutbound:
+				subscription.droppedOutbound.Add(1)
+			}
 		}
 	}
 }

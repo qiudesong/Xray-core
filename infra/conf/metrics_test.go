@@ -11,10 +11,11 @@ func TestMetricsAccessConfigBuild(t *testing.T) {
 	config, err := (&MetricsConfig{
 		Listen: "127.0.0.1:11111",
 		Access: &AccessMetricsConfig{
-			Enabled:   true,
-			Window:    duration.Duration(10 * time.Minute),
-			QueueSize: 8192,
-			Role:      "CLIENT",
+			Enabled:     true,
+			Window:      duration.Duration(10 * time.Minute),
+			QueueSize:   8192,
+			IncludeFrom: true,
+			IncludeTo:   true,
 		},
 	}).Build()
 	if err != nil {
@@ -32,41 +33,21 @@ func TestMetricsAccessConfigBuild(t *testing.T) {
 	if got, want := config.GetAccess().GetQueueSize(), uint32(8192); got != want {
 		t.Fatalf("unexpected queue size: got %d, want %d", got, want)
 	}
-	if got, want := config.GetAccess().GetRole(), "client"; got != want {
-		t.Fatalf("unexpected access role: got %q, want %q", got, want)
+	if !config.GetAccess().GetIncludeFrom() || !config.GetAccess().GetIncludeTo() {
+		t.Fatal("access address dimensions were not enabled")
 	}
 }
 
-func TestMetricsAccessConfigRejectsInvalidRole(t *testing.T) {
-	_, err := (&MetricsConfig{
-		Listen: "127.0.0.1:11111",
-		Access: &AccessMetricsConfig{Enabled: true, Role: "invalid"},
-	}).Build()
-	if err == nil {
-		t.Fatal("expected invalid access role to be rejected")
-	}
-}
-
-func TestMetricsAccessConfigRequiresRole(t *testing.T) {
-	_, err := (&MetricsConfig{
-		Listen: "127.0.0.1:11111",
-		Access: &AccessMetricsConfig{Enabled: true},
-	}).Build()
-	if err == nil {
-		t.Fatal("expected missing access role to be rejected")
-	}
-}
-
-func TestMetricsAccessConfigAllowsMissingRoleWhenDisabled(t *testing.T) {
+func TestMetricsAccessConfigAddressDimensionsDefaultToDisabled(t *testing.T) {
 	config, err := (&MetricsConfig{
 		Listen: "127.0.0.1:11111",
-		Access: &AccessMetricsConfig{Enabled: false},
+		Access: &AccessMetricsConfig{Enabled: true},
 	}).Build()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if config.GetAccess() == nil || config.GetAccess().GetEnabled() {
-		t.Fatalf("unexpected disabled access config: %+v", config.GetAccess())
+	if config.GetAccess() == nil || config.GetAccess().GetIncludeFrom() || config.GetAccess().GetIncludeTo() {
+		t.Fatalf("unexpected default access config: %+v", config.GetAccess())
 	}
 }
 

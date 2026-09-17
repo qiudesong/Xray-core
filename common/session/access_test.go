@@ -10,7 +10,7 @@ import (
 )
 
 func TestRecordAccessEnrichesMessageFromInboundSession(t *testing.T) {
-	subscription := log.SubscribeAccessEvents(1)
+	subscription := SubscribeAccessEvents(1)
 	t.Cleanup(subscription.Close)
 
 	ctx := ContextWithInbound(context.Background(), &Inbound{
@@ -33,7 +33,7 @@ func TestRecordAccessEnrichesMessageFromInboundSession(t *testing.T) {
 }
 
 func TestRecordAccessPreservesExplicitMetadata(t *testing.T) {
-	subscription := log.SubscribeAccessEvents(1)
+	subscription := SubscribeAccessEvents(1)
 	t.Cleanup(subscription.Close)
 
 	ctx := ContextWithInbound(context.Background(), &Inbound{

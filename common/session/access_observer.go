@@ -1,15 +1,17 @@
-package log
+package session
 
 import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/xtls/xray-core/common/log"
 )
 
-// AccessEvent is a structured access log event captured when Record is called.
+// AccessEvent is a structured access event published by RecordAccess.
 type AccessEvent struct {
 	Time    time.Time
-	Message AccessMessage
+	Message log.AccessMessage
 }
 
 // AccessSubscription receives structured access events without blocking the
@@ -63,7 +65,7 @@ func (s *AccessSubscription) Close() {
 	})
 }
 
-func publishAccessEvent(message *AccessMessage) {
+func publishAccessEvent(message *log.AccessMessage) {
 	accessSubscriptions.RLock()
 	defer accessSubscriptions.RUnlock()
 	if len(accessSubscriptions.items) == 0 {

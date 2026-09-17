@@ -19,6 +19,8 @@ import (
 	"github.com/xtls/xray-core/transport/internet"
 )
 
+const maximumConfiguredObservatories = 1
+
 var (
 	inboundConfigLoader = NewJSONConfigLoader(ConfigCreatorCache{
 		"tunnel":        func() interface{} { return new(DokodemoConfig) },
@@ -404,6 +406,7 @@ type Config struct {
 	FakeDNS          *FakeDNSConfig          `json:"fakeDns"`
 	Observatory      *ObservatoryConfig      `json:"observatory"`
 	BurstObservatory *BurstObservatoryConfig `json:"burstObservatory"`
+	MultiObservatory *MultiObservatoryConfig `json:"multiObservatory"`
 	Version          *VersionConfig          `json:"version"`
 	Geodata          *GeodataConfig          `json:"geodata"`
 }
@@ -480,6 +483,10 @@ func (c *Config) Override(o *Config, fn string) {
 		c.BurstObservatory = o.BurstObservatory
 	}
 
+	if o.MultiObservatory != nil {
+		c.MultiObservatory = o.MultiObservatory
+	}
+
 	if o.Version != nil {
 		c.Version = o.Version
 	}
@@ -527,6 +534,20 @@ func (c *Config) Override(o *Config, fn string) {
 
 // Build implements Buildable.
 func (c *Config) Build() (*core.Config, error) {
+	configuredObservatories := 0
+	if c.Observatory != nil {
+		configuredObservatories++
+	}
+	if c.BurstObservatory != nil {
+		configuredObservatories++
+	}
+	if c.MultiObservatory != nil {
+		configuredObservatories++
+	}
+	if configuredObservatories > maximumConfiguredObservatories {
+		return nil, errors.New("observatory, burstObservatory, and multiObservatory are mutually exclusive")
+	}
+
 	for key, value := range c.Env {
 		if err := os.Setenv(key, value); err != nil {
 			return nil, errors.New("failed to apply environment configuration").Base(err)
@@ -630,6 +651,14 @@ func (c *Config) Build() (*core.Config, error) {
 		r, err := c.BurstObservatory.Build()
 		if err != nil {
 			return nil, errors.New("failed to build burst observatory configuration").Base(err)
+		}
+		config.App = append(config.App, serial.ToTypedMessage(r))
+	}
+
+	if c.MultiObservatory != nil {
+		r, err := c.MultiObservatory.Build()
+		if err != nil {
+			return nil, errors.New("failed to build multi observatory configuration").Base(err)
 		}
 		config.App = append(config.App, serial.ToTypedMessage(r))
 	}

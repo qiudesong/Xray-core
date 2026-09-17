@@ -23,5 +23,6 @@ func RecordAccess(ctx context.Context, message *log.AccessMessage) {
 		}
 	}
 
+	publishAccessEvent(message)
 	log.Record(message)
 }

@@ -29,7 +29,7 @@ const (
 	AccessAddressTypeDomain AccessAddressType = "domain"
 )
 
-// AccessAddress is structured address metadata attached to an access event.
+// AccessAddress is structured address metadata attached to an access record.
 type AccessAddress struct {
 	Value string
 	Type  AccessAddressType
@@ -43,7 +43,7 @@ type AccessMessage struct {
 	Email  string
 	Detour string
 
-	// Structured routing metadata for access event observers. These fields do
+	// Structured routing metadata for access metrics. These fields do
 	// not change the access log's text representation.
 	InboundTag  string
 	OutboundTag string

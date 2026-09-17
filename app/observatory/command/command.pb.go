@@ -102,6 +102,102 @@ func (x *GetOutboundStatusResponse) GetStatus() *observatory.ObservationResult {
 	return nil
 }
 
+type ListProbeStatusesRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ObserverTag   string                 `protobuf:"bytes,1,opt,name=observer_tag,json=observerTag,proto3" json:"observer_tag,omitempty"`
+	OutboundTag   string                 `protobuf:"bytes,2,opt,name=outbound_tag,json=outboundTag,proto3" json:"outbound_tag,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListProbeStatusesRequest) Reset() {
+	*x = ListProbeStatusesRequest{}
+	mi := &file_app_observatory_command_command_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListProbeStatusesRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListProbeStatusesRequest) ProtoMessage() {}
+
+func (x *ListProbeStatusesRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_app_observatory_command_command_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListProbeStatusesRequest.ProtoReflect.Descriptor instead.
+func (*ListProbeStatusesRequest) Descriptor() ([]byte, []int) {
+	return file_app_observatory_command_command_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *ListProbeStatusesRequest) GetObserverTag() string {
+	if x != nil {
+		return x.ObserverTag
+	}
+	return ""
+}
+
+func (x *ListProbeStatusesRequest) GetOutboundTag() string {
+	if x != nil {
+		return x.OutboundTag
+	}
+	return ""
+}
+
+type ListProbeStatusesResponse struct {
+	state         protoimpl.MessageState        `protogen:"open.v1"`
+	Observers     []*observatory.ObserverStatus `protobuf:"bytes,1,rep,name=observers,proto3" json:"observers,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ListProbeStatusesResponse) Reset() {
+	*x = ListProbeStatusesResponse{}
+	mi := &file_app_observatory_command_command_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListProbeStatusesResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListProbeStatusesResponse) ProtoMessage() {}
+
+func (x *ListProbeStatusesResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_app_observatory_command_command_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ListProbeStatusesResponse.ProtoReflect.Descriptor instead.
+func (*ListProbeStatusesResponse) Descriptor() ([]byte, []int) {
+	return file_app_observatory_command_command_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *ListProbeStatusesResponse) GetObservers() []*observatory.ObserverStatus {
+	if x != nil {
+		return x.Observers
+	}
+	return nil
+}
+
 type Config struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -110,7 +206,7 @@ type Config struct {
 
 func (x *Config) Reset() {
 	*x = Config{}
-	mi := &file_app_observatory_command_command_proto_msgTypes[2]
+	mi := &file_app_observatory_command_command_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -122,7 +218,7 @@ func (x *Config) String() string {
 func (*Config) ProtoMessage() {}
 
 func (x *Config) ProtoReflect() protoreflect.Message {
-	mi := &file_app_observatory_command_command_proto_msgTypes[2]
+	mi := &file_app_observatory_command_command_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -135,20 +231,26 @@ func (x *Config) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Config.ProtoReflect.Descriptor instead.
 func (*Config) Descriptor() ([]byte, []int) {
-	return file_app_observatory_command_command_proto_rawDescGZIP(), []int{2}
+	return file_app_observatory_command_command_proto_rawDescGZIP(), []int{4}
 }
 
 var File_app_observatory_command_command_proto protoreflect.FileDescriptor
 
 const file_app_observatory_command_command_proto_rawDesc = "" +
 	"\n" +
-	"%app/observatory/command/command.proto\x12!xray.core.app.observatory.command\x1a\x1capp/observatory/config.proto\"\x1a\n" +
+	"%app/observatory/command/command.proto\x12!xray.core.app.observatory.command\x1a\x1capp/observatory/config.proto\x1a\x1capp/observatory/status.proto\"\x1a\n" +
 	"\x18GetOutboundStatusRequest\"a\n" +
 	"\x19GetOutboundStatusResponse\x12D\n" +
-	"\x06status\x18\x01 \x01(\v2,.xray.core.app.observatory.ObservationResultR\x06status\"\b\n" +
-	"\x06Config2\xa7\x01\n" +
+	"\x06status\x18\x01 \x01(\v2,.xray.core.app.observatory.ObservationResultR\x06status\"`\n" +
+	"\x18ListProbeStatusesRequest\x12!\n" +
+	"\fobserver_tag\x18\x01 \x01(\tR\vobserverTag\x12!\n" +
+	"\foutbound_tag\x18\x02 \x01(\tR\voutboundTag\"d\n" +
+	"\x19ListProbeStatusesResponse\x12G\n" +
+	"\tobservers\x18\x01 \x03(\v2).xray.core.app.observatory.ObserverStatusR\tobservers\"\b\n" +
+	"\x06Config2\xba\x02\n" +
 	"\x12ObservatoryService\x12\x90\x01\n" +
-	"\x11GetOutboundStatus\x12;.xray.core.app.observatory.command.GetOutboundStatusRequest\x1a<.xray.core.app.observatory.command.GetOutboundStatusResponse\"\x00B\x80\x01\n" +
+	"\x11GetOutboundStatus\x12;.xray.core.app.observatory.command.GetOutboundStatusRequest\x1a<.xray.core.app.observatory.command.GetOutboundStatusResponse\"\x00\x12\x90\x01\n" +
+	"\x11ListProbeStatuses\x12;.xray.core.app.observatory.command.ListProbeStatusesRequest\x1a<.xray.core.app.observatory.command.ListProbeStatusesResponse\"\x00B\x80\x01\n" +
 	"%com.xray.core.app.observatory.commandP\x01Z1github.com/xtls/xray-core/app/observatory/command\xaa\x02!Xray.Core.App.Observatory.Commandb\x06proto3"
 
 var (
@@ -163,22 +265,28 @@ func file_app_observatory_command_command_proto_rawDescGZIP() []byte {
 	return file_app_observatory_command_command_proto_rawDescData
 }
 
-var file_app_observatory_command_command_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_app_observatory_command_command_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_app_observatory_command_command_proto_goTypes = []any{
 	(*GetOutboundStatusRequest)(nil),      // 0: xray.core.app.observatory.command.GetOutboundStatusRequest
 	(*GetOutboundStatusResponse)(nil),     // 1: xray.core.app.observatory.command.GetOutboundStatusResponse
-	(*Config)(nil),                        // 2: xray.core.app.observatory.command.Config
-	(*observatory.ObservationResult)(nil), // 3: xray.core.app.observatory.ObservationResult
+	(*ListProbeStatusesRequest)(nil),      // 2: xray.core.app.observatory.command.ListProbeStatusesRequest
+	(*ListProbeStatusesResponse)(nil),     // 3: xray.core.app.observatory.command.ListProbeStatusesResponse
+	(*Config)(nil),                        // 4: xray.core.app.observatory.command.Config
+	(*observatory.ObservationResult)(nil), // 5: xray.core.app.observatory.ObservationResult
+	(*observatory.ObserverStatus)(nil),    // 6: xray.core.app.observatory.ObserverStatus
 }
 var file_app_observatory_command_command_proto_depIdxs = []int32{
-	3, // 0: xray.core.app.observatory.command.GetOutboundStatusResponse.status:type_name -> xray.core.app.observatory.ObservationResult
-	0, // 1: xray.core.app.observatory.command.ObservatoryService.GetOutboundStatus:input_type -> xray.core.app.observatory.command.GetOutboundStatusRequest
-	1, // 2: xray.core.app.observatory.command.ObservatoryService.GetOutboundStatus:output_type -> xray.core.app.observatory.command.GetOutboundStatusResponse
-	2, // [2:3] is the sub-list for method output_type
-	1, // [1:2] is the sub-list for method input_type
-	1, // [1:1] is the sub-list for extension type_name
-	1, // [1:1] is the sub-list for extension extendee
-	0, // [0:1] is the sub-list for field type_name
+	5, // 0: xray.core.app.observatory.command.GetOutboundStatusResponse.status:type_name -> xray.core.app.observatory.ObservationResult
+	6, // 1: xray.core.app.observatory.command.ListProbeStatusesResponse.observers:type_name -> xray.core.app.observatory.ObserverStatus
+	0, // 2: xray.core.app.observatory.command.ObservatoryService.GetOutboundStatus:input_type -> xray.core.app.observatory.command.GetOutboundStatusRequest
+	2, // 3: xray.core.app.observatory.command.ObservatoryService.ListProbeStatuses:input_type -> xray.core.app.observatory.command.ListProbeStatusesRequest
+	1, // 4: xray.core.app.observatory.command.ObservatoryService.GetOutboundStatus:output_type -> xray.core.app.observatory.command.GetOutboundStatusResponse
+	3, // 5: xray.core.app.observatory.command.ObservatoryService.ListProbeStatuses:output_type -> xray.core.app.observatory.command.ListProbeStatusesResponse
+	4, // [4:6] is the sub-list for method output_type
+	2, // [2:4] is the sub-list for method input_type
+	2, // [2:2] is the sub-list for extension type_name
+	2, // [2:2] is the sub-list for extension extendee
+	0, // [0:2] is the sub-list for field type_name
 }
 
 func init() { file_app_observatory_command_command_proto_init() }
@@ -192,7 +300,7 @@ func file_app_observatory_command_command_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_app_observatory_command_command_proto_rawDesc), len(file_app_observatory_command_command_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   5,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

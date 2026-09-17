@@ -14,25 +14,19 @@ import (
 	commongeodata "github.com/xtls/xray-core/common/geodata"
 	"github.com/xtls/xray-core/common/log"
 	xnet "github.com/xtls/xray-core/common/net"
+	"github.com/xtls/xray-core/common/session"
 )
 
-type accessRole string
-
 const (
-	accessRoleServer accessRole = "server"
-	accessRoleClient accessRole = "client"
-
 	defaultAccessMetricsWindow    = 5 * time.Minute
 	defaultAccessMetricsQueueSize = 4096
 	maxAccessMetricsQueueSize     = 1 << 20
-	maxTrackedAccessSeries        = 4096
+	maxTrackedAccessSeries        = 8192
 	maxTrackedAccessGeoSeries     = 4096
-	maxTrackedAccessAddressSeries = 4096
 	maxTrackedAccessUsers         = 100000
+	accessAll                     = "all"
 	accessUnknown                 = "unknown"
 	accessWindowBucketCount       = 60
-	accessSideFrom                = "from"
-	accessSideTo                  = "to"
 )
 
 type countryLookup interface {
@@ -56,8 +50,10 @@ type accessGeoProvider interface {
 }
 
 type accessLabels struct {
+	from     string
 	inbound  string
 	outbound string
+	to       string
 	network  string
 	status   string
 }
@@ -85,11 +81,29 @@ type accessPeerCityLabels struct {
 	network string
 }
 
-type accessAddressLabels struct {
-	address     string
-	addressType string
-	side        string
-	status      string
+type peerSideCounters struct {
+	inbound  uint64
+	outbound uint64
+}
+
+func (c *peerSideCounters) increment(side session.PeerSide) {
+	switch side {
+	case session.PeerSideInbound:
+		c.inbound++
+	case session.PeerSideOutbound:
+		c.outbound++
+	}
+}
+
+func (c peerSideCounters) value(side session.PeerSide) uint64 {
+	switch side {
+	case session.PeerSideInbound:
+		return c.inbound
+	case session.PeerSideOutbound:
+		return c.outbound
+	default:
+		return 0
+	}
 }
 
 type accessWindowBucket struct {
@@ -101,7 +115,8 @@ type accessMetrics struct {
 	window      time.Duration
 	bucketWidth time.Duration
 	queueSize   int
-	role        accessRole
+	includeFrom bool
+	includeTo   bool
 	geo         accessGeoProvider
 	userSeed    maphash.Seed
 
@@ -110,17 +125,15 @@ type accessMetrics struct {
 	peerCountryConnections map[accessPeerCountryLabels]uint64
 	peerASNConnections     map[accessPeerASNLabels]uint64
 	peerCityConnections    map[accessPeerCityLabels]uint64
-	addressRequests        map[accessAddressLabels]uint64
 	windowBuckets          []accessWindowBucket
 	users                  map[uint64]time.Time
 	requestSeriesDropped   uint64
-	peerASNSeriesDropped   uint64
-	peerCitySeriesDropped  uint64
-	addressSeriesDropped   uint64
+	peerASNSeriesDropped   peerSideCounters
+	peerCitySeriesDropped  peerSideCounters
 	userTrackingDropped    uint64
 
-	subscription     *log.AccessSubscription
-	peerSubscription *log.PeerSubscription
+	subscription     *session.AccessSubscription
+	peerSubscription *session.PeerSubscription
 	stop             chan struct{}
 	close            sync.Once
 	wg               sync.WaitGroup
@@ -146,39 +159,30 @@ type accessPeerCitySample struct {
 	value  uint64
 }
 
-type accessAddressSample struct {
-	labels accessAddressLabels
-	value  uint64
-}
-
 type accessMetricsSnapshot struct {
 	requests               []accessRequestSample
 	peerCountryConnections []accessPeerCountrySample
 	peerASNConnections     []accessPeerASNSample
 	peerCityConnections    []accessPeerCitySample
-	addressRequests        []accessAddressSample
 	windowRequests         map[string]uint64
 	uniqueUsers            int
 	eventsDropped          uint64
-	peerEventsDropped      uint64
+	peerEventsDropped      peerSideCounters
 	requestSeriesDropped   uint64
-	peerASNSeriesDropped   uint64
-	peerCitySeriesDropped  uint64
-	addressSeriesDropped   uint64
+	peerASNSeriesDropped   peerSideCounters
+	peerCitySeriesDropped  peerSideCounters
 	userTrackingDropped    uint64
 	asnEnabled             bool
 	cityEnabled            bool
-	role                   string
-	peerSide               string
 }
 
 func newAccessMetrics(config *AccessMetricsConfig) (*accessMetrics, error) {
 	if config == nil || !config.GetEnabled() {
 		return nil, nil
 	}
-	metrics := new(accessMetrics)
-	if err := metrics.setRole(config.GetRole()); err != nil {
-		return nil, err
+	metrics := &accessMetrics{
+		includeFrom: config.GetIncludeFrom(),
+		includeTo:   config.GetIncludeTo(),
 	}
 
 	window := time.Duration(config.GetWindow())
@@ -219,7 +223,6 @@ func newAccessMetrics(config *AccessMetricsConfig) (*accessMetrics, error) {
 	metrics.peerCountryConnections = make(map[accessPeerCountryLabels]uint64)
 	metrics.peerASNConnections = make(map[accessPeerASNLabels]uint64)
 	metrics.peerCityConnections = make(map[accessPeerCityLabels]uint64)
-	metrics.addressRequests = make(map[accessAddressLabels]uint64)
 	metrics.windowBuckets = make([]accessWindowBucket, bucketCount)
 	metrics.users = make(map[uint64]time.Time)
 	metrics.stop = make(chan struct{})
@@ -236,8 +239,8 @@ func (m *accessMetrics) Start() {
 	if m == nil || m.subscription != nil {
 		return
 	}
-	m.subscription = log.SubscribeAccessEvents(m.queueSize)
-	m.peerSubscription = log.SubscribePeerEvents(m.peerEventSide(), m.queueSize)
+	m.subscription = session.SubscribeAccessEvents(m.queueSize)
+	m.peerSubscription = session.SubscribePeerEvents(m.queueSize)
 	m.wg.Add(1)
 	go m.run()
 }
@@ -291,17 +294,23 @@ func (m *accessMetrics) run() {
 	}
 }
 
-func (m *accessMetrics) record(event log.AccessEvent) {
+func (m *accessMetrics) record(event session.AccessEvent) {
 	message := event.Message
 	status := string(message.Status)
 	labels := accessLabels{
+		from:     accessAll,
 		inbound:  m.normalizedAccessLabel(message.InboundTag),
 		outbound: m.normalizedAccessLabel(message.OutboundTag),
+		to:       accessAll,
 		network:  m.normalizedAccessLabel(message.Network),
 		status:   status,
 	}
-
-	reportedAddress, addressSide := m.metricAddress(message)
+	if m.includeFrom {
+		labels.from = m.normalizedAccessLabel(m.accessAddress(message.From).Value)
+	}
+	if m.includeTo {
+		labels.to = m.normalizedAccessLabel(m.accessDestination(message).Value)
+	}
 
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -311,26 +320,13 @@ func (m *accessMetrics) record(event log.AccessEvent) {
 		m.requestSeriesDropped++
 	}
 	m.recordWindowRequest(event.Time, status)
-	if reportedAddress.Value != "" {
-		labels := accessAddressLabels{
-			address:     reportedAddress.Value,
-			addressType: string(reportedAddress.Type),
-			side:        addressSide,
-			status:      status,
-		}
-		if _, found := m.addressRequests[labels]; found || len(m.addressRequests) < maxTrackedAccessAddressSeries {
-			m.addressRequests[labels]++
-		} else {
-			m.addressSeriesDropped++
-		}
-	}
 	if message.Status == log.AccessAccepted && message.Email != "" {
 		m.recordUser(event.Time, message.Email)
 	}
 }
 
-func (m *accessMetrics) recordPeer(event log.PeerEvent) {
-	if event.Side != m.peerEventSide() {
+func (m *accessMetrics) recordPeer(event session.PeerEvent) {
+	if event.Side != session.PeerSideInbound && event.Side != session.PeerSideOutbound {
 		return
 	}
 	ip := m.accessAddressIP(event.Address)
@@ -365,14 +361,14 @@ func (m *accessMetrics) recordPeer(event log.PeerEvent) {
 		if _, found := m.peerASNConnections[asn]; found || len(m.peerASNConnections) < maxTrackedAccessGeoSeries {
 			m.peerASNConnections[asn]++
 		} else {
-			m.peerASNSeriesDropped++
+			m.peerASNSeriesDropped.increment(event.Side)
 		}
 	}
 	if city.city != "" {
 		if _, found := m.peerCityConnections[city]; found || len(m.peerCityConnections) < maxTrackedAccessGeoSeries {
 			m.peerCityConnections[city]++
 		} else {
-			m.peerCitySeriesDropped++
+			m.peerCitySeriesDropped.increment(event.Side)
 		}
 	}
 }
@@ -424,23 +420,20 @@ func (m *accessMetrics) snapshot(now time.Time) accessMetricsSnapshot {
 		peerCountryConnections: make([]accessPeerCountrySample, 0, len(m.peerCountryConnections)),
 		peerASNConnections:     make([]accessPeerASNSample, 0, len(m.peerASNConnections)),
 		peerCityConnections:    make([]accessPeerCitySample, 0, len(m.peerCityConnections)),
-		addressRequests:        make([]accessAddressSample, 0, len(m.addressRequests)),
 		windowRequests:         make(map[string]uint64),
 		requestSeriesDropped:   m.requestSeriesDropped,
 		peerASNSeriesDropped:   m.peerASNSeriesDropped,
 		peerCitySeriesDropped:  m.peerCitySeriesDropped,
-		addressSeriesDropped:   m.addressSeriesDropped,
 		userTrackingDropped:    m.userTrackingDropped,
 		asnEnabled:             geoStatus.ASN,
 		cityEnabled:            geoStatus.City,
-		role:                   string(m.role),
-		peerSide:               string(m.peerEventSide()),
 	}
 	if m.subscription != nil {
 		snapshot.eventsDropped = m.subscription.Dropped()
 	}
 	if m.peerSubscription != nil {
-		snapshot.peerEventsDropped = m.peerSubscription.Dropped()
+		snapshot.peerEventsDropped.inbound = m.peerSubscription.DroppedForSide(session.PeerSideInbound)
+		snapshot.peerEventsDropped.outbound = m.peerSubscription.DroppedForSide(session.PeerSideOutbound)
 	}
 	for labels, value := range m.requests {
 		snapshot.requests = append(snapshot.requests, accessRequestSample{labels: labels, value: value})
@@ -454,10 +447,6 @@ func (m *accessMetrics) snapshot(now time.Time) accessMetricsSnapshot {
 	for labels, value := range m.peerCityConnections {
 		snapshot.peerCityConnections = append(snapshot.peerCityConnections, accessPeerCitySample{labels: labels, value: value})
 	}
-	for labels, value := range m.addressRequests {
-		snapshot.addressRequests = append(snapshot.addressRequests, accessAddressSample{labels: labels, value: value})
-	}
-
 	cutoff := now.Add(-m.window)
 	oldestSlot := cutoff.UnixNano() / int64(m.bucketWidth)
 	for i := range m.windowBuckets {
@@ -520,21 +509,6 @@ func (m *accessMetrics) lookupPeerCity(record *geoip2.City, err error, side, tag
 		labels.city = city
 	}
 	return labels
-}
-
-func (m *accessMetrics) metricAddress(message log.AccessMessage) (reportedAddress log.AccessAddress, side string) {
-	destination := m.accessDestination(message)
-	if m.role == accessRoleClient {
-		return m.accessAddress(message.From), accessSideFrom
-	}
-	return destination, accessSideTo
-}
-
-func (m *accessMetrics) peerEventSide() log.PeerSide {
-	if m.role == accessRoleClient {
-		return log.PeerSideOutbound
-	}
-	return log.PeerSideInbound
 }
 
 func (m *accessMetrics) accessDestination(message log.AccessMessage) log.AccessAddress {
@@ -646,18 +620,6 @@ func (m *accessMetrics) parseAccessIPHost(host string) stdnet.IP {
 
 func (m *accessMetrics) isPublicAccessIP(ip stdnet.IP) bool {
 	return ip != nil && ip.IsGlobalUnicast() && !ip.IsPrivate()
-}
-
-func (m *accessMetrics) setRole(role string) error {
-	switch strings.ToLower(strings.TrimSpace(role)) {
-	case string(accessRoleServer):
-		m.role = accessRoleServer
-	case string(accessRoleClient):
-		m.role = accessRoleClient
-	default:
-		return errors.New("access metrics role is required and must be server or client")
-	}
-	return nil
 }
 
 func (m *accessMetrics) normalizedAccessLabel(value string) string {

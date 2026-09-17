@@ -1,18 +1,22 @@
-package log
+package session
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/xtls/xray-core/common/log"
+)
 
 func TestAccessSubscriptionReceivesCopiesAndDropsWhenFull(t *testing.T) {
 	subscription := SubscribeAccessEvents(1)
 	t.Cleanup(subscription.Close)
 
-	message := &AccessMessage{
-		Status:      AccessAccepted,
+	message := &log.AccessMessage{
+		Status:      log.AccessAccepted,
 		Email:       "first@example.com",
 		InboundTag:  "inbound",
 		OutboundTag: "outbound",
 		Network:     "tcp",
-		Destination: AccessAddress{Value: "example.com", Type: AccessAddressTypeDomain},
+		Destination: log.AccessAddress{Value: "example.com", Type: log.AccessAddressTypeDomain},
 	}
 	publishAccessEvent(message)
 	message.Email = "changed@example.com"
@@ -31,13 +35,25 @@ func TestAccessSubscriptionReceivesCopiesAndDropsWhenFull(t *testing.T) {
 }
 
 func TestAccessMessageStructuredMetadataDoesNotChangeText(t *testing.T) {
-	message := &AccessMessage{
+	message := &log.AccessMessage{
 		From:        "source",
 		To:          "target",
-		Status:      AccessAccepted,
-		Destination: AccessAddress{Value: "example.com", Type: AccessAddressTypeDomain},
+		Status:      log.AccessAccepted,
+		Destination: log.AccessAddress{Value: "example.com", Type: log.AccessAddressTypeDomain},
 	}
 	if got, want := message.String(), "from source accepted target"; got != want {
 		t.Fatalf("unexpected access log text: got %q, want %q", got, want)
+	}
+}
+
+func TestLogRecordDoesNotPublishAccessEvent(t *testing.T) {
+	subscription := SubscribeAccessEvents(1)
+	t.Cleanup(subscription.Close)
+
+	log.Record(&log.AccessMessage{Status: log.AccessAccepted})
+	select {
+	case event := <-subscription.Events():
+		t.Fatalf("plain access log unexpectedly produced a session event: %+v", event)
+	default:
 	}
 }

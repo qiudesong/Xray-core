@@ -29,9 +29,6 @@ func (m *GeneralMessage) String() string {
 
 // Record writes a message into log stream.
 func Record(msg Message) {
-	if accessMessage, ok := msg.(*AccessMessage); ok {
-		publishAccessEvent(accessMessage)
-	}
 	logHandler.Handle(msg)
 }
 
