@@ -92,6 +92,19 @@ message StrategyLeastLoadConfig {
   int64 maxRTT = 5;
   // acceptable failure rate
   float tolerance = 6;
+  string observer_tag = 99;
+}
+
+message StrategyLeastPingConfig {
+  string observer_tag = 1;
+}
+
+message StrategyRoundRobinConfig {
+  string observer_tag = 1;
+}
+
+message StrategyRandomConfig {
+  string observer_tag = 1;
 }
 
 message Config {

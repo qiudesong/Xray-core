@@ -13,6 +13,7 @@ import (
 type LeastPingStrategy struct {
 	ctx         context.Context
 	observatory extension.Observatory
+	observerTag string
 }
 
 func (l *LeastPingStrategy) GetPrincipleTarget(strings []string) []string {
@@ -22,8 +23,9 @@ func (l *LeastPingStrategy) GetPrincipleTarget(strings []string) []string {
 func (l *LeastPingStrategy) InjectContext(ctx context.Context) {
 	l.ctx = ctx
 	common.Must(core.RequireFeatures(l.ctx, func(observatory extension.Observatory) error {
-		l.observatory = observatory
-		return nil
+		selected, err := observatoryByTag(observatory, l.observerTag)
+		l.observatory = selected
+		return err
 	}))
 }
 

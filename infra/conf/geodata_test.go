@@ -1,6 +1,7 @@
 package conf_test
 
 import (
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -70,6 +71,33 @@ func TestGeodataAssetConfigInvalidURL(t *testing.T) {
 			File: "geoip.dat",
 		}).Build(); err == nil {
 			t.Fatalf("expected error for %q", rawURL)
+		}
+	}
+}
+
+func TestGeodataConfigSupportsMultipleMMDBAssets(t *testing.T) {
+	assetDirectory := t.TempDir()
+	t.Setenv("xray.location.asset", assetDirectory)
+	files := []string{"GeoLite2-Country.mmdb", "GeoLite2-ASN.mmdb", "GeoLite2-City.mmdb"}
+	assets := make([]*GeodataAssetConfig, 0, len(files))
+	for _, file := range files {
+		if err := os.WriteFile(filepath.Join(assetDirectory, file), nil, 0o600); err != nil {
+			t.Fatal(err)
+		}
+		assets = append(assets, &GeodataAssetConfig{URL: "https://example.com/" + file, File: file})
+	}
+	cron := "0 4 * * *"
+	built, err := (&GeodataConfig{Cron: &cron, Assets: assets}).Build()
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := built.(*geodata.Config)
+	if len(config.GetAssets()) != len(files) {
+		t.Fatalf("MMDB asset count = %d, want %d", len(config.GetAssets()), len(files))
+	}
+	for i, file := range files {
+		if got := config.GetAssets()[i].GetFile(); got != file {
+			t.Fatalf("MMDB asset %d file = %q, want %q", i, got, file)
 		}
 	}
 }

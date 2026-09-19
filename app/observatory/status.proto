@@ -1,0 +1,35 @@
+syntax = "proto3";
+
+package xray.core.app.observatory;
+option csharp_namespace = "Xray.App.Observatory";
+option go_package = "github.com/xtls/xray-core/app/observatory";
+option java_package = "com.xray.app.observatory";
+option java_multiple_files = true;
+
+message ProbeStatus {
+  string observer_tag = 1;
+  string outbound_tag = 2;
+  string method = 3;
+  string policy_state = 4;
+  string effective_state = 5;
+  string policy_reason = 6;
+  bool success = 7;
+  int64 checked_at = 8;
+  int64 last_success = 9;
+  int64 duration_ms = 10;
+  int64 ttfb_ms = 11;
+  int32 http_status = 12;
+  int64 bytes = 13;
+  string error_stage = 14;
+  string error_reason = 15;
+  uint64 window_samples = 16;
+  uint64 window_failures = 17;
+  string location_source = 18;
+  string country = 19;
+  int64 location_observed_at = 20;
+}
+
+message ObserverStatus {
+  string observer_tag = 1;
+  repeated ProbeStatus status = 2;
+}

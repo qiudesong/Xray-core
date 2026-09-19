@@ -18,19 +18,41 @@ const (
 )
 
 var strategyConfigLoader = NewJSONConfigLoader(ConfigCreatorCache{
-	strategyRandom:     func() interface{} { return new(strategyEmptyConfig) },
-	strategyLeastPing:  func() interface{} { return new(strategyEmptyConfig) },
-	strategyRoundRobin: func() interface{} { return new(strategyEmptyConfig) },
+	strategyRandom:     func() interface{} { return new(strategyRandomConfig) },
+	strategyLeastPing:  func() interface{} { return new(strategyLeastPingConfig) },
+	strategyRoundRobin: func() interface{} { return new(strategyRoundRobinConfig) },
 	strategyLeastLoad:  func() interface{} { return new(strategyLeastLoadConfig) },
 }, "type", "settings")
 
-type strategyEmptyConfig struct{}
+type strategyRandomConfig struct {
+	ObserverTag string `json:"observerTag,omitempty"`
+}
 
-func (v *strategyEmptyConfig) Build() (proto.Message, error) {
-	return nil, nil
+func (v *strategyRandomConfig) Build() (proto.Message, error) {
+	if v.ObserverTag == "" {
+		return nil, nil
+	}
+	return &router.StrategyRandomConfig{ObserverTag: v.ObserverTag}, nil
+}
+
+type strategyLeastPingConfig struct {
+	ObserverTag string `json:"observerTag,omitempty"`
+}
+
+func (v *strategyLeastPingConfig) Build() (proto.Message, error) {
+	return &router.StrategyLeastPingConfig{ObserverTag: v.ObserverTag}, nil
+}
+
+type strategyRoundRobinConfig struct {
+	ObserverTag string `json:"observerTag,omitempty"`
+}
+
+func (v *strategyRoundRobinConfig) Build() (proto.Message, error) {
+	return &router.StrategyRoundRobinConfig{ObserverTag: v.ObserverTag}, nil
 }
 
 type strategyLeastLoadConfig struct {
+	ObserverTag string `json:"observerTag,omitempty"`
 	// weight settings
 	Costs []*router.StrategyWeight `json:"costs,omitempty"`
 	// ping rtt baselines
@@ -72,7 +94,7 @@ func (h HealthCheckSettings) Build() (proto.Message, error) {
 
 // Build implements Buildable.
 func (v *strategyLeastLoadConfig) Build() (proto.Message, error) {
-	config := &router.StrategyLeastLoadConfig{}
+	config := &router.StrategyLeastLoadConfig{ObserverTag: v.ObserverTag}
 	config.Costs = v.Costs
 	config.Tolerance = float32(v.Tolerance)
 	if config.Tolerance < 0 {

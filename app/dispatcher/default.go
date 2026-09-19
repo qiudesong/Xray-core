@@ -98,6 +98,8 @@ type DefaultDispatcher struct {
 	policy policy.Manager
 	stats  stats.Manager
 	fdns   dns.FakeDNSEngine
+
+	routeStats *routeStatsManager
 }
 
 func init() {
@@ -121,6 +123,7 @@ func (d *DefaultDispatcher) Init(config *Config, om outbound.Manager, router rou
 	d.router = router
 	d.policy = pm
 	d.stats = sm
+	d.routeStats = newRouteStatsManager(pm, sm)
 	return nil
 }
 
@@ -486,7 +489,12 @@ func (d *DefaultDispatcher) routedDispatch(ctx context.Context, link *transport.
 	}
 
 	ob.Tag = handler.Tag()
+	d.routeStats.wrapLink(link, inTag, handler.Tag(), destination.Network.SystemString())
 	if accessMessage := log.AccessMessageFromContext(ctx); accessMessage != nil {
+		accessMessage.InboundTag = inTag
+		accessMessage.OutboundTag = handler.Tag()
+		accessMessage.Network = destination.Network.SystemString()
+		accessMessage.Destination = newAccessAddress(destination)
 		if tag := handler.Tag(); tag != "" {
 			if inTag == "" {
 				accessMessage.Detour = tag
@@ -498,7 +506,7 @@ func (d *DefaultDispatcher) routedDispatch(ctx context.Context, link *transport.
 				accessMessage.Detour = inTag + " >> " + tag
 			}
 		}
-		log.Record(accessMessage)
+		session.RecordAccess(ctx, accessMessage)
 	}
 
 	handler.Dispatch(ctx, link)

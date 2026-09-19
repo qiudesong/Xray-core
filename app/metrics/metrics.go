@@ -29,6 +29,8 @@ type MetricsHandler struct {
 	listen       string
 	tcpListener  xnet.Listener
 	listener     *OutboundListener
+	prometheus   http.Handler
+	access       *accessMetrics
 }
 
 // NewMetricsHandler creates a new MetricsHandler based on the given config.
@@ -38,6 +40,12 @@ func NewMetricsHandler(ctx context.Context, config *Config) (*MetricsHandler, er
 		tag:    config.Tag,
 		listen: config.Listen,
 	}
+	access, err := newAccessMetrics(config.GetAccess())
+	if err != nil {
+		return nil, err
+	}
+	c.access = access
+	c.prometheus = newPrometheusHandler(c)
 	common.Must(core.RequireFeatures(ctx, func(om outbound.Manager, sm feature_stats.Manager) {
 		c.statsManager = sm
 		c.ohm = om
@@ -50,12 +58,20 @@ func (p *MetricsHandler) Type() interface{} {
 }
 
 func (p *MetricsHandler) Start() error {
+	if p.access != nil {
+		p.access.Start()
+	}
 	handler := p.httpHandler()
 
 	// direct listen a port if listen is set
 	if p.listen != "" {
 		TCPlistener, err := xnet.Listen("tcp", p.listen)
 		if err != nil {
+			if p.access != nil {
+				if closeErr := p.access.Close(); closeErr != nil {
+					errors.LogErrorInner(context.Background(), closeErr, "failed to close access metrics after start failure")
+				}
+			}
 			return err
 		}
 		p.tcpListener = TCPlistener
@@ -66,6 +82,11 @@ func (p *MetricsHandler) Start() error {
 
 	if p.tag == "" {
 		if p.tcpListener == nil {
+			if p.access != nil {
+				if closeErr := p.access.Close(); closeErr != nil {
+					errors.LogErrorInner(context.Background(), closeErr, "failed to close access metrics after start failure")
+				}
+			}
 			return errors.New("metrics must have a tag or listen address")
 		}
 		return nil
@@ -98,6 +119,9 @@ func (p *MetricsHandler) Start() error {
 
 func (p *MetricsHandler) Close() error {
 	var errs []error
+	if p.access != nil {
+		errs = append(errs, p.access.Close())
+	}
 	if p.tcpListener != nil {
 		errs = append(errs, p.tcpListener.Close())
 		p.tcpListener = nil
@@ -134,6 +158,7 @@ func isClosedListenerError(err error) bool {
 
 func (p *MetricsHandler) httpHandler() http.Handler {
 	mux := http.NewServeMux()
+	mux.Handle("/metrics", p.prometheus)
 	mux.HandleFunc("/debug/vars", p.handleDebugVars)
 	mux.HandleFunc("/debug/pprof/", pprof.Index)
 	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
@@ -180,7 +205,7 @@ func (p *MetricsHandler) stats() map[string]map[string]map[string]int64 {
 	}
 	p.statsManager.VisitCounters(func(name string, counter feature_stats.Counter) bool {
 		nameSplit := strings.Split(name, ">>>")
-		if len(nameSplit) < 4 {
+		if len(nameSplit) < 4 || nameSplit[0] == "route" {
 			return true
 		}
 		typeName, tagOrUser, direction := nameSplit[0], nameSplit[1], nameSplit[3]

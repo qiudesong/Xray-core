@@ -20,14 +20,13 @@ type Manager struct {
 	taggedHandler    map[string]outbound.Handler
 	untaggedHandlers []outbound.Handler
 	running          bool
-	tagsCache        *sync.Map
+	tagsCache        sync.Map
 }
 
 // New creates a new Manager.
 func New(ctx context.Context, config *proxyman.OutboundConfig) (*Manager, error) {
 	m := &Manager{
 		taggedHandler: make(map[string]outbound.Handler),
-		tagsCache:     &sync.Map{},
 	}
 	return m, nil
 }
@@ -104,8 +103,6 @@ func (m *Manager) AddHandler(ctx context.Context, handler outbound.Handler) erro
 	m.access.Lock()
 	defer m.access.Unlock()
 
-	m.tagsCache = &sync.Map{}
-
 	if m.defaultHandler == nil {
 		m.defaultHandler = handler
 	}
@@ -119,6 +116,7 @@ func (m *Manager) AddHandler(ctx context.Context, handler outbound.Handler) erro
 	} else {
 		m.untaggedHandlers = append(m.untaggedHandlers, handler)
 	}
+	m.tagsCache.Clear()
 
 	if m.running {
 		return handler.Start()
@@ -135,12 +133,11 @@ func (m *Manager) RemoveHandler(ctx context.Context, tag string) error {
 	m.access.Lock()
 	defer m.access.Unlock()
 
-	m.tagsCache = &sync.Map{}
-
 	delete(m.taggedHandler, tag)
 	if m.defaultHandler != nil && m.defaultHandler.Tag() == tag {
 		m.defaultHandler = nil
 	}
+	m.tagsCache.Clear()
 
 	return nil
 }

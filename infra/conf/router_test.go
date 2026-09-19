@@ -236,3 +236,38 @@ func TestRouterConfig(t *testing.T) {
 		},
 	})
 }
+
+func TestRandomStrategySettings(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  *serial.TypedMessage
+	}{
+		{
+			name:  "default",
+			input: `{"tag":"b1","selector":["test"]}`,
+		},
+		{
+			name:  "observer",
+			input: `{"tag":"b1","selector":["test"],"strategy":{"type":"random","settings":{"observerTag":"health"}}}`,
+			want:  serial.ToTypedMessage(&router.StrategyRandomConfig{ObserverTag: "health"}),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var config BalancingRule
+			if err := json.Unmarshal([]byte(test.input), &config); err != nil {
+				t.Fatal(err)
+			}
+
+			rule, err := config.Build()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !proto.Equal(rule.StrategySettings, test.want) {
+				t.Fatalf("unexpected random strategy settings: got %v, want %v", rule.StrategySettings, test.want)
+			}
+		})
+	}
+}

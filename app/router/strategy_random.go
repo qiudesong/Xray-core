@@ -16,14 +16,16 @@ type RandomStrategy struct {
 
 	ctx         context.Context
 	observatory extension.Observatory
+	observerTag string
 }
 
 func (s *RandomStrategy) InjectContext(ctx context.Context) {
 	s.ctx = ctx
-	if len(s.FallbackTag) > 0 {
+	if len(s.FallbackTag) > 0 || s.observerTag != "" {
 		common.Must(core.RequireFeatures(s.ctx, func(observatory extension.Observatory) error {
-			s.observatory = observatory
-			return nil
+			selected, err := observatoryByTag(observatory, s.observerTag)
+			s.observatory = selected
+			return err
 		}))
 	}
 }
@@ -48,7 +50,7 @@ func (s *RandomStrategy) PickOutbound(candidates []string) string {
 						if outboundStatus.Alive {
 							aliveTags = append(aliveTags, candidate)
 						}
-					} else {
+					} else if s.observerTag == "" {
 						// unfound candidate is considered alive
 						aliveTags = append(aliveTags, candidate)
 					}

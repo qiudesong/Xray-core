@@ -311,10 +311,18 @@ func (s swap) rollback() error {
 	return errors.Combine(errs...)
 }
 
+func (s swap) commit() error {
+	err := os.Remove(s.backup)
+	if err != nil && !go_errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
+}
+
 func (t *tx) commit() error {
 	var errs []error
 	for _, swap := range t.swaps {
-		if err := os.Remove(swap.backup); err != nil && !go_errors.Is(err, os.ErrNotExist) {
+		if err := swap.commit(); err != nil {
 			errs = append(errs, err)
 		}
 	}

@@ -176,7 +176,7 @@ func (s *Server) Process(ctx context.Context, network net.Network, conn stat.Con
 	if firstLen < 58 || first.Byte(56) != '\r' {
 		// invalid protocol
 		err = errors.New("not trojan protocol")
-		log.Record(&log.AccessMessage{
+		session.RecordAccess(ctx, &log.AccessMessage{
 			From:   conn.RemoteAddr(),
 			To:     "",
 			Status: log.AccessRejected,
@@ -189,7 +189,7 @@ func (s *Server) Process(ctx context.Context, network net.Network, conn stat.Con
 		if user == nil {
 			// invalid user, let's fallback
 			err = errors.New("not a valid user")
-			log.Record(&log.AccessMessage{
+			session.RecordAccess(ctx, &log.AccessMessage{
 				From:   conn.RemoteAddr(),
 				To:     "",
 				Status: log.AccessRejected,
@@ -208,7 +208,7 @@ func (s *Server) Process(ctx context.Context, network net.Network, conn stat.Con
 
 	clientReader := &ConnReader{Reader: bufferedReader}
 	if err := clientReader.ParseHeader(); err != nil {
-		log.Record(&log.AccessMessage{
+		session.RecordAccess(ctx, &log.AccessMessage{
 			From:   conn.RemoteAddr(),
 			To:     "",
 			Status: log.AccessRejected,

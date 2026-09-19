@@ -11,4 +11,17 @@ message Config {
   // Tag of the outbound handler that handles metrics http connections.
   string tag = 1;
   string listen = 2;
+  AccessMetricsConfig access = 99;
+}
+
+// AccessMetricsConfig controls metrics derived from structured access events.
+message AccessMetricsConfig {
+  bool enabled = 1;
+  // Sliding window stored as an int64 time.Duration.
+  int64 window = 2;
+  uint32 queue_size = 3;
+  // Include the normalized source address in request metric labels.
+  bool include_from = 4;
+  // Include the normalized effective destination in request metric labels.
+  bool include_to = 5;
 }

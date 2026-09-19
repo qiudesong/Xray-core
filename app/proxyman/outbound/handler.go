@@ -6,6 +6,7 @@ import (
 	goerrors "errors"
 	"io"
 	"math/big"
+	"sync/atomic"
 
 	"github.com/xtls/xray-core/common/dice"
 
@@ -65,6 +66,8 @@ type Handler struct {
 	udp443          string
 	uplinkCounter   stats.Counter
 	downlinkCounter stats.Counter
+
+	connectionAttempts atomic.Uint64
 }
 
 // NewHandler creates a new Handler based on the given configuration.
@@ -176,6 +179,7 @@ func (h *Handler) Tag() string {
 
 // Dispatch implements proxy.Outbound.Dispatch.
 func (h *Handler) Dispatch(ctx context.Context, link *transport.Link) {
+	h.connectionAttempts.Add(1)
 	outbounds := session.OutboundsFromContext(ctx)
 	ob := outbounds[len(outbounds)-1]
 	content := session.ContentFromContext(ctx)
@@ -273,6 +277,9 @@ func (h *Handler) Dial(ctx context.Context, dest net.Destination) (stat.Connecti
 	}
 
 	conn, err := internet.Dial(ctx, dest, h.streamSettings)
+	if err == nil && conn != nil {
+		session.RecordOutboundPeer(h.tag, conn.RemoteAddr())
+	}
 	conn = h.getStatCouterConnection(conn)
 	return conn, err
 }
@@ -342,6 +349,11 @@ func (h *Handler) SenderSettings() *serial.TypedMessage {
 // ProxySettings implements outbound.Handler.
 func (h *Handler) ProxySettings() *serial.TypedMessage {
 	return serial.ToTypedMessage(h.proxyConfig)
+}
+
+// ConnectionAttempts returns the number of Dispatch calls handled by this outbound.
+func (h *Handler) ConnectionAttempts() uint64 {
+	return h.connectionAttempts.Load()
 }
 
 func ParseRandomIP(addr net.Address, prefix string) net.Address {

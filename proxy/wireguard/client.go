@@ -38,6 +38,7 @@ type entry struct {
 
 type Handler struct {
 	conf          *DeviceConfig
+	tag           string
 	policyManager policy.Manager
 	dns           dns.Client
 
@@ -142,6 +143,7 @@ func NewClient(ctx context.Context, conf *DeviceConfig) (*Handler, error) {
 
 	return &Handler{
 		conf:          conf,
+		tag:           tag,
 		policyManager: p,
 		dns:           d,
 
@@ -297,6 +299,7 @@ func (h *Handler) init(ctx context.Context) error {
 		if err != nil {
 			return nil, err
 		}
+		session.RecordOutboundPeer(h.tag, conn.RemoteAddr())
 		var pktConn net.PacketConn
 		switch c := conn.(type) {
 		case *internet.PacketConnWrapper:

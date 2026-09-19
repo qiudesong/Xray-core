@@ -3,6 +3,8 @@ package outbound_test
 import (
 	"context"
 	"fmt"
+	"io"
+	stdnet "net"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -18,6 +20,7 @@ import (
 	core "github.com/xtls/xray-core/core"
 	"github.com/xtls/xray-core/features/outbound"
 	"github.com/xtls/xray-core/proxy/freedom"
+	"github.com/xtls/xray-core/transport/internet"
 	"github.com/xtls/xray-core/transport/internet/stat"
 )
 
@@ -87,6 +90,86 @@ func TestOutboundWithStatCounter(t *testing.T) {
 	}
 }
 
+type peerDialConnection struct {
+	remote stdnet.Addr
+}
+
+func (*peerDialConnection) Read([]byte) (int, error)           { return 0, io.EOF }
+func (c *peerDialConnection) Write(buffer []byte) (int, error) { return len(buffer), nil }
+func (*peerDialConnection) Close() error                       { return nil }
+func (*peerDialConnection) LocalAddr() stdnet.Addr             { return &stdnet.TCPAddr{} }
+func (c *peerDialConnection) RemoteAddr() stdnet.Addr          { return c.remote }
+func (*peerDialConnection) SetDeadline(time.Time) error        { return nil }
+func (*peerDialConnection) SetReadDeadline(time.Time) error    { return nil }
+func (*peerDialConnection) SetWriteDeadline(time.Time) error   { return nil }
+
+func TestDialPublishesPeerOnlyAfterSuccess(t *testing.T) {
+	protocol := fmt.Sprintf("peer-test-%p", t)
+	if err := internet.RegisterProtocolConfigCreator(protocol, func() interface{} { return struct{}{} }); err != nil {
+		t.Fatal(err)
+	}
+	if err := internet.RegisterTransportDialer(protocol, func(_ context.Context, dest net.Destination, _ *internet.MemoryStreamConfig) (stat.Connection, error) {
+		if dest.Port == 2 {
+			return nil, fmt.Errorf("dial failed")
+		}
+		return &peerDialConnection{remote: &stdnet.TCPAddr{IP: stdnet.ParseIP("203.0.113.30"), Port: int(dest.Port)}}, nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	config := &core.Config{
+		App: []*serial.TypedMessage{
+			serial.ToTypedMessage(&stats.Config{}),
+			serial.ToTypedMessage(&policy.Config{}),
+		},
+	}
+	v, err := core.New(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v.AddFeature(outbound.Manager(new(Manager)))
+	ctx := context.WithValue(context.Background(), xrayKey, v)
+	ctx = session.ContextWithOutbounds(ctx, []*session.Outbound{{}})
+	handler, err := NewHandler(ctx, &core.OutboundHandlerConfig{
+		Tag: "direct",
+		SenderSettings: serial.ToTypedMessage(&proxyman.SenderConfig{
+			StreamSettings: &internet.StreamConfig{ProtocolName: protocol},
+		}),
+		ProxySettings: serial.ToTypedMessage(&freedom.Config{FinalRules: []*freedom.FinalRuleConfig{{Action: freedom.RuleAction_Allow}}}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := handler.(*Handler)
+
+	subscription := session.SubscribePeerEvents(2)
+	t.Cleanup(subscription.Close)
+	conn, err := h.Dial(ctx, net.TCPDestination(net.ParseAddress("198.51.100.1"), 1))
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = conn.Close()
+
+	select {
+	case event := <-subscription.Events():
+		if event.Tag != "direct" || event.Network != "tcp" || event.Address.Value != "203.0.113.30" {
+			t.Fatalf("unexpected outbound peer event: %+v", event)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("successful dial did not publish peer event")
+	}
+
+	failedConn, err := h.Dial(ctx, net.TCPDestination(net.ParseAddress("198.51.100.2"), 2))
+	if err == nil {
+		_ = failedConn.Close()
+		t.Fatal("configured failed dial unexpectedly succeeded")
+	}
+	select {
+	case event := <-subscription.Events():
+		t.Fatalf("failed dial published peer event: %+v", event)
+	default:
+	}
+}
+
 func TestTagsCache(t *testing.T) {
 	test_duration := 10 * time.Second
 	threads_num := 50
@@ -107,11 +190,11 @@ func TestTagsCache(t *testing.T) {
 	v.AddFeature(ohm)
 	ctx := context.WithValue(context.Background(), xrayKey, v)
 
-	stop_add_rm := false
+	stop_add_rm := atomic.Bool{}
 	wg_add_rm := sync.WaitGroup{}
 	addHandlers := func() {
 		defer wg_add_rm.Done()
-		for !stop_add_rm {
+		for !stop_add_rm.Load() {
 			time.Sleep(delay)
 			idx := counter.Add(1)
 			tag := fmt.Sprintf("%s%d", tags_prefix, idx)
@@ -134,7 +217,7 @@ func TestTagsCache(t *testing.T) {
 
 	rmHandlers := func() {
 		defer wg_add_rm.Done()
-		for !stop_add_rm {
+		for !stop_add_rm.Load() {
 			time.Sleep(delay)
 			tags.Range(func(key interface{}, value interface{}) bool {
 				if _, ok := tags.LoadAndDelete(key); ok {
@@ -149,10 +232,10 @@ func TestTagsCache(t *testing.T) {
 
 	selectors := []string{tags_prefix}
 	wg_get := sync.WaitGroup{}
-	stop_get := false
+	stop_get := atomic.Bool{}
 	getTags := func() {
 		defer wg_get.Done()
-		for !stop_get {
+		for !stop_get.Load() {
 			time.Sleep(delay)
 			_ = ohm.Select(selectors)
 			// t.Logf("get tags: %v", tag)
@@ -168,8 +251,8 @@ func TestTagsCache(t *testing.T) {
 	}
 
 	time.Sleep(test_duration)
-	stop_add_rm = true
+	stop_add_rm.Store(true)
 	wg_add_rm.Wait()
-	stop_get = true
+	stop_get.Store(true)
 	wg_get.Wait()
 }

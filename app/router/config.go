@@ -125,16 +125,40 @@ func (rr *RoutingRule) BuildCondition() (Condition, error) {
 func (br *BalancingRule) Build(ohm outbound.Manager, dispatcher routing.Dispatcher) (*Balancer, error) {
 	switch strings.ToLower(br.Strategy) {
 	case "leastping":
+		var observerTag string
+		if br.StrategySettings != nil {
+			instance, err := br.StrategySettings.GetInstance()
+			if err != nil {
+				return nil, errors.New("failed to decode leastping strategy settings").Base(err).AtError()
+			}
+			settings, ok := instance.(*StrategyLeastPingConfig)
+			if !ok {
+				return nil, errors.New("not a StrategyLeastPingConfig").AtError()
+			}
+			observerTag = settings.ObserverTag
+		}
 		return &Balancer{
 			selectors:   br.OutboundSelector,
-			strategy:    &LeastPingStrategy{},
+			strategy:    &LeastPingStrategy{observerTag: observerTag},
 			fallbackTag: br.FallbackTag,
 			ohm:         ohm,
 		}, nil
 	case "roundrobin":
+		var observerTag string
+		if br.StrategySettings != nil {
+			instance, err := br.StrategySettings.GetInstance()
+			if err != nil {
+				return nil, errors.New("failed to decode roundrobin strategy settings").Base(err).AtError()
+			}
+			settings, ok := instance.(*StrategyRoundRobinConfig)
+			if !ok {
+				return nil, errors.New("not a StrategyRoundRobinConfig").AtError()
+			}
+			observerTag = settings.ObserverTag
+		}
 		return &Balancer{
 			selectors:   br.OutboundSelector,
-			strategy:    &RoundRobinStrategy{FallbackTag: br.FallbackTag},
+			strategy:    &RoundRobinStrategy{FallbackTag: br.FallbackTag, observerTag: observerTag},
 			fallbackTag: br.FallbackTag,
 			ohm:         ohm,
 		}, nil
@@ -157,11 +181,23 @@ func (br *BalancingRule) Build(ohm outbound.Manager, dispatcher routing.Dispatch
 	case "random":
 		fallthrough
 	case "":
+		var observerTag string
+		if br.StrategySettings != nil {
+			instance, err := br.StrategySettings.GetInstance()
+			if err != nil {
+				return nil, errors.New("failed to decode random strategy settings").Base(err).AtError()
+			}
+			settings, ok := instance.(*StrategyRandomConfig)
+			if !ok {
+				return nil, errors.New("not a StrategyRandomConfig").AtError()
+			}
+			observerTag = settings.ObserverTag
+		}
 		return &Balancer{
 			selectors:   br.OutboundSelector,
 			ohm:         ohm,
 			fallbackTag: br.FallbackTag,
-			strategy:    &RandomStrategy{FallbackTag: br.FallbackTag},
+			strategy:    &RandomStrategy{FallbackTag: br.FallbackTag, observerTag: observerTag},
 		}, nil
 	default:
 		return nil, errors.New("unrecognized balancer type")
